@@ -1,0 +1,1513 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quietloop — AI automation for small teams</title>
+<meta name="description" content="Quietloop builds custom AI automations for small businesses and ops teams. The invoice chasing, inbox triage, and copy-paste-between-tools work that eats your week — mapped, built, and running quietly in the background. Join the waitlist.">
+<meta name="theme-color" content="#0A0C0F">
+<meta name="color-scheme" content="dark">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="Quietloop — AI automation for small teams">
+<meta property="og:description" content="Put the busywork on a loop. Custom AI automations for small businesses and ops teams. Join the waitlist.">
+<meta property="og:site_name" content="Quietloop">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Quietloop — AI automation for small teams">
+<meta name="twitter:description" content="Put the busywork on a loop. Custom AI automations for small businesses and ops teams.">
+
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230A0C0F'/><path d='M11.5 10.5h9a5.5 5.5 0 0 1 0 11h-9a5.5 5.5 0 0 1 0-11z' fill='none' stroke='%234FD1C5' stroke-width='2.5'/></svg>">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* ---------------------------------------------------------------
+   Quietloop — single-file landing page
+   Tokens
+--------------------------------------------------------------- */
+:root {
+  --bg:            #0A0C0F;
+  --bg-elev:       #111419;
+  --bg-elev-2:     #161A21;
+  --border:        #232830;
+  --border-bright: #333B46;
+  --text:          #EDEFF2;
+  --text-muted:    #99A2AE;
+  /* #6C7480 measured 4.15:1 on --bg, under the 4.5:1 WCAG AA floor for the
+     form notes, footer links and figcaption that use it. This is 4.79:1. */
+  --text-dim:      #767E8C;
+  --accent:        #4FD1C5;
+  --accent-bright: #8AF0E4;
+  --accent-soft:   rgba(79, 209, 197, 0.12);
+  --accent-line:   rgba(79, 209, 197, 0.32);
+  --danger:        #FF8B7B;
+  --radius-sm:     8px;
+  --radius:        14px;
+  --radius-lg:     22px;
+  --maxw:          1120px;
+  --pad:           clamp(20px, 5vw, 40px);
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}
+
+/* ---------------------------------------------------------------
+   Reset & base
+--------------------------------------------------------------- */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+  scroll-padding-top: 88px;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* `clip` rather than `hidden`: hidden would make <body> a scroll container
+     and break `position: sticky` on the header. */
+  overflow-x: clip;
+}
+
+img, svg { max-width: 100%; }
+h1, h2, h3, h4 { margin: 0; line-height: 1.15; letter-spacing: -0.02em; font-weight: 600; }
+p { margin: 0; }
+ul { margin: 0; padding: 0; list-style: none; }
+a { color: inherit; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: -60px;
+  z-index: 200;
+  padding: 10px 16px;
+  background: var(--accent);
+  color: #05201D;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  transition: top .15s ease;
+}
+.skip-link:focus { top: 12px; }
+
+.wrap {
+  width: 100%;
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding-left: var(--pad);
+  padding-right: var(--pad);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------------------------------------------------------------
+   Header
+--------------------------------------------------------------- */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(10, 12, 15, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid transparent;
+  transition: border-color .2s ease, background .2s ease;
+}
+.site-header.is-scrolled {
+  border-bottom-color: var(--border);
+  background: rgba(10, 12, 15, 0.9);
+}
+.site-header .wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 68px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.brand-mark { display: block; flex: none; }
+.brand-mark path { stroke: var(--accent); }
+
+/* ---------------------------------------------------------------
+   Buttons
+--------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 13px 20px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background .16s ease, border-color .16s ease,
+              color .16s ease, transform .1s ease, opacity .16s ease;
+}
+.btn:active { transform: translateY(1px); }
+
+.btn-primary {
+  background: var(--accent);
+  color: #05201D;
+}
+.btn-primary:hover { background: var(--accent-bright); }
+.btn-primary:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: var(--border-bright);
+  color: var(--text);
+}
+.btn-ghost:hover {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.btn-sm { padding: 10px 16px; font-size: 0.9rem; }
+
+/* ---------------------------------------------------------------
+   Sections
+--------------------------------------------------------------- */
+section { position: relative; }
+
+.section {
+  padding-top: clamp(64px, 9vw, 108px);
+  padding-bottom: clamp(64px, 9vw, 108px);
+}
+.section + .section { padding-top: 0; }
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 18px;
+}
+.eyebrow::before {
+  content: "";
+  width: 18px;
+  height: 1px;
+  background: var(--accent-line);
+}
+
+.section-title {
+  font-size: clamp(1.75rem, 3.6vw, 2.5rem);
+  max-width: 22ch;
+}
+
+.section-lede {
+  margin-top: 16px;
+  max-width: 62ch;
+  color: var(--text-muted);
+  font-size: 1.05rem;
+}
+
+/* ---------------------------------------------------------------
+   Hero
+--------------------------------------------------------------- */
+.hero {
+  position: relative;
+  padding-top: clamp(56px, 8vw, 96px);
+  padding-bottom: clamp(56px, 8vw, 96px);
+  overflow: hidden;
+}
+.hero-glow {
+  position: absolute;
+  top: -260px;
+  left: 50%;
+  width: min(1000px, 130vw);
+  height: 700px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at center,
+              rgba(79, 209, 197, 0.16) 0%,
+              rgba(79, 209, 197, 0.05) 38%,
+              transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+.hero .wrap { position: relative; z-index: 1; }
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: clamp(32px, 6vw, 72px);
+  align-items: center;
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 14px 6px 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  border-radius: 999px;
+  font-size: 0.83rem;
+  color: var(--text-muted);
+  margin-bottom: 26px;
+}
+.hero-badge .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+h1.hero-title {
+  font-size: clamp(2.35rem, 6vw, 4rem);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+}
+h1.hero-title .accent {
+  background: linear-gradient(100deg, var(--accent) 10%, var(--accent-bright) 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hero-sub {
+  margin-top: 22px;
+  font-size: clamp(1.03rem, 1.6vw, 1.15rem);
+  color: var(--text-muted);
+  max-width: 54ch;
+}
+
+/* Staged entrance (CSS only — no JS dependency) */
+.enter { animation: rise .7s cubic-bezier(.22,.68,.32,1) both; }
+.enter-1 { animation-delay: .04s; }
+.enter-2 { animation-delay: .12s; }
+.enter-3 { animation-delay: .20s; }
+.enter-4 { animation-delay: .28s; }
+.enter-5 { animation-delay: .36s; }
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---------------------------------------------------------------
+   Waitlist form
+--------------------------------------------------------------- */
+.form-card {
+  margin-top: 34px;
+  max-width: 560px;
+}
+.form-card.is-centered { margin-left: auto; margin-right: auto; }
+
+.waitlist-form { display: block; }
+
+.field-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.field-row .field { flex: 1 1 250px; min-width: 0; }
+.field-row .btn { flex: 0 0 auto; }
+
+.field { margin-bottom: 10px; }
+.field:last-of-type { margin-bottom: 0; }
+
+.field label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  /* .cta-panel centres its text; form controls must stay left-aligned. */
+  text-align: left;
+}
+
+.input, .textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 1rem;
+  text-align: left;
+  color: var(--text);
+  background: var(--bg-elev);
+  border: 1px solid var(--border-bright);
+  border-radius: 10px;
+  padding: 13px 15px;
+  line-height: 1.4;
+  transition: border-color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+.input::placeholder, .textarea::placeholder { color: var(--text-dim); }
+.input:hover, .textarea:hover { border-color: #3E4753; }
+.input:focus, .textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  background: var(--bg-elev-2);
+}
+.input[aria-invalid="true"] { border-color: var(--danger); }
+
+.textarea { resize: vertical; min-height: 84px; }
+
+.form-extra {
+  margin-top: 10px;
+  display: none;
+}
+.form-extra.is-open { display: block; }
+
+.form-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 4px 0;
+  min-height: 24px; /* WCAG 2.5.8 minimum target size */
+  background: none;
+  border: 0;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--border-bright);
+}
+.form-toggle:hover { color: var(--accent); text-decoration-color: var(--accent-line); }
+
+.form-note {
+  margin-top: 14px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  max-width: 48ch;
+}
+
+.form-status {
+  margin-top: 12px;
+  font-size: 0.9rem;
+  min-height: 0;
+}
+.form-status:empty { margin-top: 0; }
+.form-status[data-state="error"] { color: var(--danger); }
+.form-status[data-state="pending"] { color: var(--text-muted); }
+.form-status a { color: inherit; }
+
+.honeypot {
+  position: absolute !important;
+  left: -9999px !important;
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+.form-success {
+  display: none;
+  border: 1px solid var(--accent-line);
+  background: var(--accent-soft);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  text-align: left;
+}
+.form-success.is-visible { display: block; }
+.form-success:focus { outline: none; }
+.form-success:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.form-success h3 {
+  font-size: 1.15rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.form-success h3 svg { flex: none; }
+.form-success p {
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: 0.94rem;
+}
+
+/* ---------------------------------------------------------------
+   Hero loop graphic
+--------------------------------------------------------------- */
+.loop-visual {
+  position: relative;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at 50% 45%, rgba(79,209,197,.07), transparent 62%),
+    linear-gradient(180deg, var(--bg-elev) 0%, #0C0F13 100%);
+  padding: 26px 22px 22px;
+}
+.loop-visual figcaption {
+  margin-top: 14px;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+.loop-track { stroke: var(--border-bright); }
+.loop-node  { fill: #0C0F13; stroke: var(--accent-line); }
+.loop-label { fill: var(--text-muted); font-size: 11px; font-weight: 500; font-family: var(--font); }
+.loop-dot-core { fill: var(--accent-bright); }
+.loop-dot-halo { fill: var(--accent); opacity: .22; }
+
+/* ---------------------------------------------------------------
+   Cards / grids
+--------------------------------------------------------------- */
+.grid {
+  display: grid;
+  gap: 18px;
+  margin-top: 46px;
+}
+.grid-3 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+
+.card {
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--bg-elev) 0%, #0C0F13 100%);
+  border-radius: var(--radius);
+  padding: 26px 24px;
+  transition: border-color .18s ease, transform .18s ease;
+}
+.card:hover { border-color: var(--border-bright); transform: translateY(-2px); }
+.card h3 { font-size: 1.08rem; margin-bottom: 10px; }
+.card p { color: var(--text-muted); font-size: 0.95rem; }
+
+.card-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  margin-bottom: 18px;
+}
+.card-icon svg { stroke: var(--accent); }
+
+/* Steps */
+.steps {
+  display: grid;
+  gap: 18px;
+  margin-top: 46px;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  counter-reset: step;
+}
+.step {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  padding: 26px 24px;
+  position: relative;
+}
+.step-num {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+.step h3 { font-size: 1.05rem; margin-bottom: 10px; }
+.step p { color: var(--text-muted); font-size: 0.95rem; }
+
+/* ---------------------------------------------------------------
+   Honesty panel
+--------------------------------------------------------------- */
+.honest {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(79,209,197,.06), transparent 55%),
+    var(--bg-elev);
+  padding: clamp(28px, 4.5vw, 48px);
+}
+.honest-list {
+  display: grid;
+  gap: 22px 34px;
+  margin-top: 34px;
+  grid-template-columns: minmax(0, 1fr);
+}
+/* Four items: a 2x2 block, never three-up with a lone orphan on row two. */
+@media (min-width: 720px) {
+  .honest-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.honest-list li {
+  padding-left: 26px;
+  position: relative;
+}
+.honest-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 9px;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1.5px solid var(--accent-line);
+  background: var(--accent-soft);
+}
+.honest-list strong {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 4px;
+  font-size: 0.98rem;
+}
+.honest-list span {
+  color: var(--text-muted);
+  font-size: 0.93rem;
+}
+
+/* ---------------------------------------------------------------
+   FAQ
+--------------------------------------------------------------- */
+.faq { margin-top: 40px; max-width: 780px; }
+.faq details {
+  border-top: 1px solid var(--border);
+  padding: 4px 0;
+}
+.faq details:last-child { border-bottom: 1px solid var(--border); }
+.faq summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 20px 40px 20px 0;
+  font-weight: 500;
+  font-size: 1.02rem;
+  position: relative;
+  transition: color .16s ease;
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary:hover { color: var(--accent); }
+.faq summary::after {
+  content: "";
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  margin-top: -6px;
+  border-right: 1.8px solid var(--text-dim);
+  border-bottom: 1.8px solid var(--text-dim);
+  transform: rotate(45deg);
+  transition: transform .2s ease, border-color .16s ease;
+}
+.faq details[open] summary::after {
+  transform: rotate(-135deg);
+  margin-top: -2px;
+  border-color: var(--accent);
+}
+.faq .faq-body {
+  padding: 0 12px 24px 0;
+  color: var(--text-muted);
+  font-size: 0.97rem;
+  max-width: 68ch;
+}
+
+/* ---------------------------------------------------------------
+   Final CTA
+--------------------------------------------------------------- */
+.cta-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(79,209,197,.11), transparent 62%),
+    var(--bg-elev);
+  padding: clamp(34px, 5.5vw, 64px) clamp(24px, 5vw, 56px);
+  text-align: center;
+}
+.cta-panel h2 {
+  font-size: clamp(1.7rem, 3.4vw, 2.35rem);
+  max-width: 20ch;
+  margin: 0 auto;
+}
+.cta-panel .section-lede { margin-left: auto; margin-right: auto; }
+.cta-panel .form-note { margin-left: auto; margin-right: auto; }
+.cta-panel .form-status { text-align: left; }
+
+/* ---------------------------------------------------------------
+   Footer
+--------------------------------------------------------------- */
+.site-footer {
+  border-top: 1px solid var(--border);
+  margin-top: clamp(56px, 8vw, 96px);
+  padding: 34px 0 44px;
+}
+.site-footer .wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 28px;
+  align-items: center;
+  justify-content: space-between;
+}
+.site-footer p, .site-footer a {
+  font-size: 0.88rem;
+  color: var(--text-dim);
+}
+.site-footer a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 4px 0;          /* WCAG 2.5.8 minimum target size */
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+}
+.site-footer a:hover { color: var(--accent); }
+.footer-links { display: flex; gap: 8px 22px; flex-wrap: wrap; align-items: center; }
+
+/* ---------------------------------------------------------------
+   Responsive
+--------------------------------------------------------------- */
+@media (max-width: 900px) {
+  /* Single column, with the headline and form ahead of the diagram —
+     leading a phone with an abstract graphic buries the actual pitch. */
+  .hero-grid { grid-template-columns: minmax(0, 1fr); }
+  .loop-visual { order: 1; }
+  /* Three numbered steps read as 3-across or as a stack. Letting them fall
+     into 2 + 1 just looks like a mistake. */
+  .steps { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 620px) {
+  body { font-size: 16px; }
+  .site-header .wrap { height: 62px; }
+  .field-row { flex-direction: column; align-items: stretch; }
+  .field-row .btn { width: 100%; }
+  /* The hero button opts out of the row's baseline alignment on desktop;
+     once stacked it must fill the width like everything else. */
+  .field-row .btn { align-self: stretch !important; }
+  .brand span { font-size: 1rem; }
+  .site-footer .wrap { justify-content: flex-start; }
+}
+
+/* Narrow phones: shorten the header CTA rather than dropping it — it is the
+   only persistent call to action once the page scrolls. */
+.header-cta-short { display: none; }
+@media (max-width: 430px) {
+  .header-cta { padding: 10px 14px; }
+  .header-cta-full { display: none; }
+  .header-cta-short { display: inline; }
+}
+
+/* ---------------------------------------------------------------
+   Motion & print
+--------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+  .loop-dot { visibility: hidden; }
+  .card:hover { transform: none; }
+}
+
+@media print {
+  .site-header, .loop-visual, .btn { display: none !important; }
+  body { background: #fff; color: #000; }
+}
+</style>
+</head>
+
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header" id="siteHeader">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="Quietloop, back to top">
+      <svg class="brand-mark" width="26" height="26" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <path d="M11.5 10.5h9a5.5 5.5 0 0 1 0 11h-9a5.5 5.5 0 0 1 0-11z"
+              fill="none" stroke-width="2.4" stroke-linecap="round"/>
+      </svg>
+      <span>Quietloop</span>
+    </a>
+    <button type="button" class="btn btn-primary btn-sm header-cta"
+            aria-label="Join the waitlist" data-scroll-to-form>
+      <span class="header-cta-full">Join the waitlist</span>
+      <span class="header-cta-short">Join</span>
+    </button>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ============================ HERO ============================ -->
+  <section class="hero" id="top">
+    <div class="hero-glow" aria-hidden="true"></div>
+    <div class="wrap">
+      <div class="hero-grid">
+
+        <div>
+          <span class="hero-badge enter enter-1">
+            <span class="dot" aria-hidden="true"></span>
+            Pre-launch · first cohort forming
+          </span>
+
+          <h1 class="hero-title enter enter-2">
+            Put the busywork <span class="accent">on a loop.</span>
+          </h1>
+
+          <p class="hero-sub enter enter-3">
+            Quietloop builds custom AI automations for small businesses and ops teams.
+            The invoice chasing, the inbox triage, the copy-paste between five different
+            tools — we map it, build it, and it runs quietly in the background.
+          </p>
+
+          <div class="form-card enter enter-4">
+            <!--
+              Waitlist form.
+              Submissions are relayed by FormSubmit.co straight to rohintbusiness@gmail.com.
+              No API key, no account, no dashboard — the destination address IS the endpoint.
+              The `action` below is the no-JavaScript fallback; script.js-equivalent logic at
+              the bottom of this file intercepts the submit and posts to the /ajax/ endpoint
+              so the visitor never leaves the page.
+            -->
+            <form class="waitlist-form"
+                  action="https://formsubmit.co/rohintbusiness@gmail.com"
+                  method="POST"
+                  novalidate>
+
+              <input type="hidden" name="_subject" value="Quietloop waitlist — new signup">
+              <input type="hidden" name="_template" value="table">
+              <input type="hidden" name="_captcha" value="false">
+              <input type="hidden" name="source" value="hero">
+
+              <!-- Spam trap: FormSubmit silently discards submissions where _honey is filled. -->
+              <div class="honeypot" aria-hidden="true">
+                <label for="hero-honey">Leave this field empty</label>
+                <input type="text" id="hero-honey" name="_honey" tabindex="-1" autocomplete="off">
+              </div>
+
+              <div data-fields>
+                <div class="field-row">
+                  <div class="field">
+                    <label for="hero-email">Work email</label>
+                    <input class="input" type="email" id="hero-email" name="email"
+                           placeholder="you@company.com" autocomplete="email"
+                           aria-describedby="hero-status"
+                           required spellcheck="false">
+                  </div>
+                  <button type="submit" class="btn btn-primary" style="align-self: flex-end;">
+                    Join the waitlist
+                  </button>
+                </div>
+
+                <button type="button" class="form-toggle" data-extra-toggle
+                        aria-expanded="false" aria-controls="hero-extra">
+                  Tell us what to build first (optional)
+                </button>
+
+                <div class="form-extra" id="hero-extra" data-extra>
+                  <div class="field">
+                    <label for="hero-name">Name</label>
+                    <input class="input" type="text" id="hero-name" name="name"
+                           placeholder="Alex Rivera" autocomplete="name">
+                  </div>
+                  <div class="field">
+                    <label for="hero-task">What's the most repetitive task on your plate?</label>
+                    <textarea class="textarea" id="hero-task" name="biggest_time_sink"
+                              placeholder="e.g. Re-typing supplier invoices into Xero, every single week."></textarea>
+                  </div>
+                </div>
+
+                <p class="form-note">
+                  Early access, pricing, and build slots go to this list first.
+                  No spam, and you can leave any time.
+                </p>
+              </div>
+
+              <p class="form-status" id="hero-status" data-status role="status" aria-live="polite"></p>
+            </form>
+
+            <div class="form-success" data-success role="status" tabindex="-1">
+              <h3>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" stroke="#4FD1C5" stroke-width="1.8"/>
+                  <path d="m7.8 12.2 2.8 2.8 5.6-5.6" stroke="#4FD1C5" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                You're on the list.
+              </h3>
+              <p>
+                We'll email you when the next build slots open. If you told us what to
+                automate, that's the first thing we'll look at.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <figure class="loop-visual enter enter-5" style="margin: 0;">
+          <svg viewBox="0 0 400 210" role="img"
+               xmlns:xlink="http://www.w3.org/1999/xlink"
+               aria-label="Diagram of a continuous loop with four stages: capture, understand, act, and log."
+               focusable="false">
+            <defs>
+              <path id="ql-loop"
+                    d="M 140 55 H 260 A 55 55 0 0 1 260 165 H 140 A 55 55 0 0 1 140 55 Z"/>
+            </defs>
+
+            <use href="#ql-loop" xlink:href="#ql-loop" class="loop-track" fill="none"
+                 stroke-width="1.5" stroke-dasharray="5 6"/>
+
+            <!-- Stage nodes -->
+            <circle class="loop-node" cx="140" cy="55"  r="6" stroke-width="1.5"/>
+            <circle class="loop-node" cx="260" cy="55"  r="6" stroke-width="1.5"/>
+            <circle class="loop-node" cx="260" cy="165" r="6" stroke-width="1.5"/>
+            <circle class="loop-node" cx="140" cy="165" r="6" stroke-width="1.5"/>
+
+            <text class="loop-label" x="140" y="38"  text-anchor="middle">Capture</text>
+            <text class="loop-label" x="260" y="38"  text-anchor="middle">Understand</text>
+            <text class="loop-label" x="260" y="188" text-anchor="middle">Act</text>
+            <text class="loop-label" x="140" y="188" text-anchor="middle">Log</text>
+
+            <!-- Travelling pulses -->
+            <g class="loop-dot">
+              <circle class="loop-dot-halo" r="7"/>
+              <circle class="loop-dot-core" r="3"/>
+              <animateMotion dur="7s" repeatCount="indefinite" begin="0s">
+                <mpath href="#ql-loop" xlink:href="#ql-loop"/>
+              </animateMotion>
+            </g>
+            <g class="loop-dot">
+              <circle class="loop-dot-halo" r="6"/>
+              <circle class="loop-dot-core" r="2.5"/>
+              <animateMotion dur="7s" repeatCount="indefinite" begin="-2.33s">
+                <mpath href="#ql-loop" xlink:href="#ql-loop"/>
+              </animateMotion>
+            </g>
+            <g class="loop-dot">
+              <circle class="loop-dot-halo" r="6"/>
+              <circle class="loop-dot-core" r="2.5"/>
+              <animateMotion dur="7s" repeatCount="indefinite" begin="-4.66s">
+                <mpath href="#ql-loop" xlink:href="#ql-loop"/>
+              </animateMotion>
+            </g>
+          </svg>
+          <figcaption>Every automation is one closed loop: capture, understand, act, log.</figcaption>
+        </figure>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================= WHAT WE BUILD ========================= -->
+  <section class="section" id="what">
+    <div class="wrap">
+      <span class="eyebrow">What we take off your plate</span>
+      <h2 class="section-title">The work that's too small to hire for and too slow to keep doing.</h2>
+      <p class="section-lede">
+        These are the processes we're building first. If yours isn't listed but it's
+        repetitive, rule-shaped, and eating hours — tell us on the form and it goes on the list.
+      </p>
+
+      <div class="grid grid-3">
+
+        <article class="card">
+          <div class="card-icon">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 7h18v12H3z"/><path d="m3 7 9 7 9-7"/>
+            </svg>
+          </div>
+          <h3>Inbox &amp; request triage</h3>
+          <p>
+            Incoming email, form submissions, and shared-inbox requests read, categorised,
+            routed to the right person, and returned to you with a draft reply already written.
+          </p>
+        </article>
+
+        <article class="card">
+          <div class="card-icon">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/>
+              <path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h4"/>
+            </svg>
+          </div>
+          <h3>Invoices &amp; receipts</h3>
+          <p>
+            Line items pulled out of PDFs, scans, and phone photos, matched against your
+            purchase orders, and pushed into your accounting software. Mismatches get flagged,
+            not guessed at.
+          </p>
+        </article>
+
+        <article class="card">
+          <div class="card-icon">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/>
+            </svg>
+          </div>
+          <h3>Follow-ups nobody sends</h3>
+          <p>
+            Quotes that went quiet, renewals coming up, invoices past due, leads that never
+            got a second touch — chased on a schedule you set, in your own wording.
+          </p>
+        </article>
+
+        <article class="card">
+          <div class="card-icon">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 7V5a1 1 0 0 1 1-1h9l3 3h2a1 1 0 0 1 1 1v2"/>
+              <path d="M20 17v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2"/>
+              <path d="M8 12h8"/><path d="m13 9 3 3-3 3"/>
+            </svg>
+          </div>
+          <h3>Copy-paste between tools</h3>
+          <p>
+            Moving the same record from your CRM into a spreadsheet into your invoicing tool.
+            We connect the ends so nobody re-types anything.
+          </p>
+        </article>
+
+        <article class="card">
+          <div class="card-icon">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>
+            </svg>
+          </div>
+          <h3>The report nobody has time for</h3>
+          <p>
+            Weekly numbers pulled from wherever they live, assembled into the format you
+            actually read, and sitting in your inbox before Monday's stand-up.
+          </p>
+        </article>
+
+        <article class="card">
+          <div class="card-icon">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/>
+            </svg>
+          </div>
+          <h3>Onboarding paperwork</h3>
+          <p>
+            New client or new hire packets generated from your templates, sent, tracked,
+            and politely chased until they come back signed.
+          </p>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== HOW IT WORKS ========================== -->
+  <section class="section" id="how">
+    <div class="wrap">
+      <span class="eyebrow">How it works</span>
+      <h2 class="section-title">Three steps, and you approve every one of them.</h2>
+
+      <div class="steps">
+        <article class="step">
+          <span class="step-num" aria-hidden="true">1</span>
+          <h3>We look at one real week</h3>
+          <p>
+            A short call and a walk through where the hours actually go. Nothing to install,
+            no commitment. You'll get a written shortlist of what's worth automating and
+            what genuinely isn't.
+          </p>
+        </article>
+
+        <article class="step">
+          <span class="step-num" aria-hidden="true">2</span>
+          <h3>We build around your tools</h3>
+          <p>
+            Custom-built for the software you already pay for — no migration, no new platform
+            to learn. You review it against real examples before it's allowed to touch
+            anything live.
+          </p>
+        </article>
+
+        <article class="step">
+          <span class="step-num" aria-hidden="true">3</span>
+          <h3>It runs. You spot-check it.</h3>
+          <p>
+            Everything runs in the background against a log you can read. Anything the system
+            isn't confident about gets escalated to a person instead of guessed — and you set
+            where that line sits.
+          </p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================= WHERE WE ARE ========================= -->
+  <section class="section" id="status">
+    <div class="wrap">
+      <div class="honest">
+        <span class="eyebrow">Where we actually are</span>
+        <h2 class="section-title">We're pre-launch, and we'd rather just say so.</h2>
+        <p class="section-lede">
+          Most pages at this stage borrow credibility they haven't earned yet. Here's the
+          unglamorous version instead, so you know exactly what you're signing up for.
+        </p>
+
+        <ul class="honest-list">
+          <li>
+            <strong>No customers yet.</strong>
+            <span>
+              This is a waitlist, not a launch. You won't find testimonials, logo walls, or
+              award badges here, because we haven't earned any of them.
+            </span>
+          </li>
+          <li>
+            <strong>The first cohort is small.</strong>
+            <span>
+              Early builds are hands-on and we'd rather do a handful properly than a hundred
+              badly. Joining the list is how you get in line for a slot.
+            </span>
+          </li>
+          <li>
+            <strong>Pricing isn't set.</strong>
+            <span>
+              The plan is to charge per automation rather than per seat, so a bigger team
+              doesn't cost more. The list gets the real numbers before anyone else.
+            </span>
+          </li>
+          <li>
+            <strong>Nothing runs unsupervised on day one.</strong>
+            <span>
+              Every automation ships with a human review step, and it stays there until you've
+              watched it long enough to find it boring.
+            </span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== FAQ ============================== -->
+  <section class="section" id="faq">
+    <div class="wrap">
+      <span class="eyebrow">Questions</span>
+      <h2 class="section-title">The things people ask first.</h2>
+
+      <div class="faq">
+        <details>
+          <summary>What actually counts as "one automation"?</summary>
+          <div class="faq-body">
+            One repetitive process, handled end to end. For example: "every invoice that lands
+            in accounts@ gets read, entered into our accounting tool, and flagged if it doesn't
+            match a purchase order" is a single automation — however many steps that takes
+            behind the scenes.
+          </div>
+        </details>
+
+        <details>
+          <summary>Do I have to change the tools my team already uses?</summary>
+          <div class="faq-body">
+            No. We build around your existing stack rather than asking you to move onto ours.
+            If a tool has an inbox, an export, or an API, we can usually work with it. If it
+            genuinely can't be connected, we'll tell you that on the first call instead of
+            selling you a workaround.
+          </div>
+        </details>
+
+        <details>
+          <summary>What happens when the AI gets something wrong?</summary>
+          <div class="faq-body">
+            It escalates instead of guessing. Every automation has a confidence threshold you
+            control, and anything below it goes to a person with the context attached. Every
+            action is logged, so you can always see what ran, when, and on what input.
+          </div>
+        </details>
+
+        <details>
+          <summary>Will my company's data be used to train models?</summary>
+          <div class="faq-body">
+            No. Your data is used to run your automation and nothing else — we won't use it to
+            train models or share it with anyone outside the work you've hired us for. Once
+            we're live, this commitment goes into the contract in plain language.
+          </div>
+        </details>
+
+        <details>
+          <summary>What does joining the waitlist actually commit me to?</summary>
+          <div class="faq-body">
+            Nothing. It's an email address on a list. You'll hear from us when build slots open
+            and when pricing is set, and you can ask to be removed at any point by replying to
+            any message we send.
+          </div>
+        </details>
+
+        <details>
+          <summary>When does the first cohort start?</summary>
+          <div class="faq-body">
+            We're onboarding as builds free up rather than against a fixed launch date — and we
+            won't invent one to create urgency. The waitlist is how you hear the moment there's
+            a slot.
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ FINAL CTA ============================ -->
+  <section class="section" id="join">
+    <div class="wrap">
+      <div class="cta-panel">
+        <h2>Get in line for the first cohort.</h2>
+        <p class="section-lede">
+          Drop your email and, if you like, the one task you'd hand over tomorrow.
+          We read every response.
+        </p>
+
+        <div class="form-card is-centered">
+          <form class="waitlist-form"
+                action="https://formsubmit.co/rohintbusiness@gmail.com"
+                method="POST"
+                novalidate>
+
+            <input type="hidden" name="_subject" value="Quietloop waitlist — new signup">
+            <input type="hidden" name="_template" value="table">
+            <input type="hidden" name="_captcha" value="false">
+            <input type="hidden" name="source" value="footer-cta">
+
+            <div class="honeypot" aria-hidden="true">
+              <label for="cta-honey">Leave this field empty</label>
+              <input type="text" id="cta-honey" name="_honey" tabindex="-1" autocomplete="off">
+            </div>
+
+            <div data-fields>
+              <div class="field-row">
+                <div class="field">
+                  <label class="sr-only" for="cta-email">Work email</label>
+                  <input class="input" type="email" id="cta-email" name="email"
+                         placeholder="you@company.com" autocomplete="email"
+                         aria-describedby="cta-status"
+                         required spellcheck="false">
+                </div>
+                <button type="submit" class="btn btn-primary">Join the waitlist</button>
+              </div>
+
+              <button type="button" class="form-toggle" data-extra-toggle
+                      aria-expanded="false" aria-controls="cta-extra">
+                Tell us what to build first (optional)
+              </button>
+
+              <div class="form-extra" id="cta-extra" data-extra>
+                <div class="field">
+                  <label for="cta-name">Name</label>
+                  <input class="input" type="text" id="cta-name" name="name"
+                         placeholder="Alex Rivera" autocomplete="name">
+                </div>
+                <div class="field">
+                  <label for="cta-task">What's the most repetitive task on your plate?</label>
+                  <textarea class="textarea" id="cta-task" name="biggest_time_sink"
+                            placeholder="e.g. Chasing signed onboarding forms from new clients."></textarea>
+                </div>
+              </div>
+
+              <p class="form-note">
+                No spam, and you can leave any time.
+              </p>
+            </div>
+
+            <p class="form-status" id="cta-status" data-status role="status" aria-live="polite"></p>
+          </form>
+
+          <div class="form-success" data-success role="status" tabindex="-1">
+            <h3>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" stroke="#4FD1C5" stroke-width="1.8"/>
+                <path d="m7.8 12.2 2.8 2.8 5.6-5.6" stroke="#4FD1C5" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              You're on the list.
+            </h3>
+            <p>
+              We'll email you when the next build slots open. If you told us what to
+              automate, that's the first thing we'll look at.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>&copy; <span id="year">2026</span> Quietloop. Pre-launch.</p>
+    <div class="footer-links">
+      <a href="#what">What we build</a>
+      <a href="#how">How it works</a>
+      <a href="#faq">FAQ</a>
+      <a href="mailto:rohintbusiness@gmail.com">Email us</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  /* -------------------------------------------------------------
+     Config
+     FormSubmit.co relays straight to the address in the URL.
+     No API key, no account, no dashboard.
+  ------------------------------------------------------------- */
+  var CONTACT   = "rohintbusiness@gmail.com";
+  var ENDPOINT  = "https://formsubmit.co/ajax/" + CONTACT;
+  var EMAIL_RE  = /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/;
+
+  function $all(sel, root) {
+    return Array.prototype.slice.call((root || document).querySelectorAll(sel));
+  }
+
+  /* -------------------------------------------------------------
+     Footer year
+  ------------------------------------------------------------- */
+  var yearEl = document.getElementById("year");
+  if (yearEl) { yearEl.textContent = String(new Date().getFullYear()); }
+
+  /* -------------------------------------------------------------
+     Header shadow on scroll
+  ------------------------------------------------------------- */
+  var header = document.getElementById("siteHeader");
+  if (header) {
+    var ticking = false;
+    var syncHeader = function () {
+      header.classList.toggle("is-scrolled", window.pageYOffset > 8);
+      ticking = false;
+    };
+    window.addEventListener("scroll", function () {
+      if (!ticking) {
+        ticking = true;
+        window.requestAnimationFrame(syncHeader);
+      }
+    }, { passive: true });
+    syncHeader();
+  }
+
+  /* -------------------------------------------------------------
+     "Join the waitlist" in the header -> focus the first live field
+  ------------------------------------------------------------- */
+  $all("[data-scroll-to-form]").forEach(function (trigger) {
+    trigger.addEventListener("click", function () {
+      // Prefer a form that hasn't been submitted yet.
+      var target = null;
+      $all(".waitlist-form").some(function (form) {
+        if (form.getAttribute("data-done") !== "true") { target = form; return true; }
+        return false;
+      });
+      if (!target) { target = document.querySelector(".waitlist-form"); }
+      if (!target) { return; }
+
+      var input = target.querySelector('input[type="email"]');
+      var reduce = window.matchMedia &&
+                   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      if (target.scrollIntoView) {
+        target.scrollIntoView({
+          behavior: reduce ? "auto" : "smooth",
+          block: "center"
+        });
+      }
+      if (input) {
+        // Wait for the smooth scroll to settle before stealing focus.
+        window.setTimeout(function () {
+          try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); }
+        }, reduce ? 0 : 420);
+      }
+    });
+  });
+
+  /* -------------------------------------------------------------
+     Optional-fields disclosure
+  ------------------------------------------------------------- */
+  $all("[data-extra-toggle]").forEach(function (toggle) {
+    var panelId = toggle.getAttribute("aria-controls");
+    var panel = panelId ? document.getElementById(panelId) : null;
+    if (!panel) { return; }
+
+    toggle.addEventListener("click", function () {
+      var open = panel.classList.toggle("is-open");
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      toggle.textContent = open
+        ? "Hide the optional bits"
+        : "Tell us what to build first (optional)";
+      if (open) {
+        var first = panel.querySelector("input, textarea");
+        if (first) { first.focus(); }
+      }
+    });
+  });
+
+  /* -------------------------------------------------------------
+     Waitlist submission
+  ------------------------------------------------------------- */
+  $all(".waitlist-form").forEach(function (form) {
+    var emailInput = form.querySelector('input[type="email"]');
+    var statusEl   = form.querySelector("[data-status]");
+    var fieldsEl   = form.querySelector("[data-fields]");
+    var button     = form.querySelector('button[type="submit"]');
+    var honeyInput = form.querySelector('input[name="_honey"]');
+    // The success panel is a sibling of the form inside .form-card.
+    var successEl  = form.parentNode
+      ? form.parentNode.querySelector("[data-success]")
+      : null;
+
+    var busy = false;
+    var buttonLabel = button ? button.textContent : "";
+
+    function setStatus(state, html) {
+      if (!statusEl) { return; }
+      if (state) { statusEl.setAttribute("data-state", state); }
+      else { statusEl.removeAttribute("data-state"); }
+      statusEl.innerHTML = html || "";
+    }
+
+    function setBusy(on) {
+      busy = on;
+      if (!button) { return; }
+      button.disabled = on;
+      button.textContent = on ? "Joining…" : buttonLabel;
+    }
+
+    function succeed() {
+      form.setAttribute("data-done", "true");
+      if (fieldsEl) { fieldsEl.style.display = "none"; }
+      setStatus(null, "");
+      if (successEl) {
+        successEl.classList.add("is-visible");
+        // Pull it into view on long pages, then move focus there so screen
+        // readers land on the confirmation rather than on a vanished button.
+        if (successEl.scrollIntoView) {
+          successEl.scrollIntoView({ behavior: "auto", block: "nearest" });
+        }
+        try { successEl.focus({ preventScroll: true }); } catch (e) { successEl.focus(); }
+      } else {
+        setStatus("ok", "You're on the list — thanks.");
+      }
+    }
+
+    function fail() {
+      setBusy(false);
+      setStatus(
+        "error",
+        'That didn’t go through. Please try again, or email us directly at ' +
+        '<a href="mailto:' + CONTACT + '">' + CONTACT + "</a>."
+      );
+    }
+
+    if (emailInput) {
+      emailInput.addEventListener("input", function () {
+        if (emailInput.getAttribute("aria-invalid") === "true") {
+          emailInput.removeAttribute("aria-invalid");
+          setStatus(null, "");
+        }
+      });
+    }
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (busy || form.getAttribute("data-done") === "true") { return; }
+
+      var email = emailInput ? String(emailInput.value || "").trim() : "";
+
+      if (!EMAIL_RE.test(email)) {
+        setStatus("error", "Please enter a valid email address.");
+        if (emailInput) {
+          emailInput.setAttribute("aria-invalid", "true");
+          emailInput.focus();
+        }
+        return;
+      }
+
+      // Bot filled the hidden trap: show the normal success state, send nothing.
+      if (honeyInput && String(honeyInput.value || "").trim() !== "") {
+        succeed();
+        return;
+      }
+
+      setBusy(true);
+      setStatus("pending", "Sending…");
+
+      var payload;
+      try {
+        payload = new FormData(form);
+        payload.set("email", email);
+        // Trim the optional fields, and drop them entirely when blank, so the
+        // notification email doesn't arrive with empty rows in it.
+        ["name", "biggest_time_sink"].forEach(function (key) {
+          var value = String(payload.get(key) || "").trim();
+          if (value) { payload.set(key, value); }
+          else { payload.delete(key); }
+        });
+      } catch (e) {
+        // Very old browser without the FormData(form) constructor:
+        // fall back to a plain, non-AJAX POST.
+        form.submit();
+        return;
+      }
+
+      if (typeof window.fetch !== "function") {
+        form.submit();
+        return;
+      }
+
+      window.fetch(ENDPOINT, {
+        method: "POST",
+        body: payload,
+        headers: { "Accept": "application/json" }
+      })
+        .then(function (response) {
+          if (!response.ok) { throw new Error("HTTP " + response.status); }
+          return response.text();
+        })
+        .then(function () { succeed(); })
+        .catch(function () { fail(); });
+    });
+  });
+})();
+</script>
+</body>
+</html>
