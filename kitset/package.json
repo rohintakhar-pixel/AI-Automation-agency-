@@ -1,0 +1,30 @@
+{
+  "name": "kitset",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Kitset storefront. Sells pre-built AI bots as a one-time purchase.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "bot:build": "node bot/build-workflow.mjs",
+    "bot:test": "node --test bot/tests/*.test.js",
+    "bot:verify": "node bot/verify-workflow.mjs",
+    "check": "node bot/build-workflow.mjs && node --test bot/tests/*.test.js && node bot/verify-workflow.mjs && next build"
+  },
+  "dependencies": {
+    "marked": "18.0.11",
+    "next": "15.5.25",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "stripe": "22.6.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "22.18.1",
+    "@types/react": "19.2.0",
+    "@types/react-dom": "19.2.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.2"
+  }
+}

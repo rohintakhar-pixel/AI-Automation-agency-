@@ -1,0 +1,81 @@
+KITSET — SHOPIFY SUPPORT-EMAIL DRAFTER
+======================================
+
+Thank you. This is yours now. There is no licence check, nothing expires, and
+the bot never contacts Kitset.
+
+
+WHAT IS IN THIS DOWNLOAD
+------------------------
+
+shopify-support-drafter.workflow.json
+    This is the bot. It is an n8n workflow with 16 nodes. You import this file
+    into n8n. Do not open it in a text editor and edit it by hand; everything
+    you need to change is a field inside n8n once it is imported.
+
+example-return-policy.md
+    An example return policy, so you can see the level of detail the bot works
+    best with. Replace every word of it with your own policy. The bot only ever
+    repeats what you write.
+
+READ-ME-FIRST.txt
+    This file.
+
+The setup manual is on the Kitset website, on this bot's page. It is the same
+manual you could read before buying. Keep that page open while you set up.
+
+
+WHAT ORDER TO DO THINGS IN
+--------------------------
+
+1. Read the setup manual all the way through once, before doing any of it.
+   It takes ten minutes and it will save you an hour.
+
+2. Write your return policy out in plain words. Have it ready to paste.
+
+3. Work through the manual's steps in order, 1 to 13. Do not skip ahead to
+   importing the workflow; the credentials have to exist first or the import
+   just shows you a canvas full of red warnings.
+
+4. Test it by hand on one real order before you switch it on.
+
+
+THE ONE THING TO KNOW BEFORE YOU START
+--------------------------------------
+
+The bot ships with automatic sending switched OFF, and the workflow ships
+switched off too.
+
+Everything it writes goes into your Gmail drafts for you to read and send. That
+is deliberate. A draft you glance at costs you ten seconds. A wrong reply sent
+to a customer costs you the customer.
+
+When you have watched it for a week and the drafts have all been right, the end
+of step 13 in the manual explains how to let it send the plainest replies on
+its own. Even then it only ever auto-sends a straightforward "where is my
+order" answer about a shipped order with a real tracking number on it. Returns
+and address changes always wait for you.
+
+
+WHAT IT COSTS YOU TO RUN
+------------------------
+
+Nothing further to Kitset. You paid once.
+
+You will pay two other companies directly:
+
+    OpenAI    typically well under $1 per month at a solo store's volume
+    n8n       $0 if you self-host, about $20 per month on n8n Cloud
+
+Shopify and Gmail cost nothing extra; you already have them.
+
+
+WHAT IT DOES NOT DO
+-------------------
+
+- It reads your Shopify orders. It cannot change, refund, or cancel them, and
+  it does not have permission to try.
+- It answers three kinds of question: where is my order, basic return requests,
+  and address changes. Anything else it leaves for you to read.
+- It cannot create a return label or start a return in Shopify.
+- It does not learn from your edits.

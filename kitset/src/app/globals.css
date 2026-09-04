@@ -1,0 +1,159 @@
+@import "tailwindcss";
+
+/*
+  Dark theme. Gradients appear on the page background and on accent surfaces
+  only. Body text always sits on a flat colour, so it stays readable and
+  passes WCAG AA.
+
+  Contrast on the flat page background #0f1216:
+    --color-ink      #e9edf2   15.97:1
+    --color-muted    #aab4c1    8.95:1
+    --color-link     #8ab4ff    8.99:1
+  White on the accent gradient, which is the buy button:
+    --color-accent-a #4166d6    5.13:1
+    --color-accent-b #6f45e0    5.83:1
+  Measured, not estimated. All well past the 4.5:1 that AA asks for on body
+  text, at both ends of the gradient.
+*/
+
+@theme {
+  --color-page: #0f1216;
+  --color-surface: #161b22;
+  --color-edge: #2a323d;
+  --color-ink: #e9edf2;
+  --color-muted: #aab4c1;
+  --color-link: #8ab4ff;
+  --color-accent-a: #4166d6;
+  --color-accent-b: #6f45e0;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-page);
+  /* Gradient on the page background only. Text never sits on the gradient
+     itself; every text block has a flat background behind it. */
+  background-image: radial-gradient(
+    900px 500px at 50% -10%,
+    rgba(65, 102, 214, 0.20),
+    transparent 70%
+  );
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Keyboard users must be able to see where they are. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--color-link);
+  outline-offset: 2px;
+}
+
+/* The rendered manual. Plain, readable, no surprises. */
+.prose {
+  color: var(--color-ink);
+  line-height: 1.7;
+}
+.prose h1,
+.prose h2,
+.prose h3 {
+  color: var(--color-ink);
+  font-weight: 700;
+  line-height: 1.3;
+}
+.prose h1 {
+  font-size: 1.75rem;
+  margin: 2rem 0 1rem;
+}
+.prose h2 {
+  font-size: 1.35rem;
+  margin: 2.25rem 0 0.75rem;
+  border-top: 1px solid var(--color-edge);
+  padding-top: 1.25rem;
+}
+.prose h3 {
+  font-size: 1.1rem;
+  margin: 1.5rem 0 0.5rem;
+}
+.prose p,
+.prose ul,
+.prose ol,
+.prose blockquote,
+.prose table {
+  margin: 0.9rem 0;
+}
+.prose ul,
+.prose ol {
+  padding-left: 1.5rem;
+}
+.prose ul {
+  list-style: disc;
+}
+.prose ol {
+  list-style: decimal;
+}
+.prose li {
+  margin: 0.4rem 0;
+}
+.prose a {
+  color: var(--color-link);
+  text-decoration: underline;
+}
+.prose strong {
+  color: var(--color-ink);
+  font-weight: 700;
+}
+.prose code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--color-surface);
+  border: 1px solid var(--color-edge);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+  overflow-wrap: anywhere;
+}
+.prose pre {
+  background: var(--color-surface);
+  border: 1px solid var(--color-edge);
+  border-radius: 6px;
+  padding: 0.9rem;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+.prose pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+.prose blockquote {
+  border-left: 3px solid var(--color-accent-a);
+  padding-left: 1rem;
+  color: var(--color-muted);
+}
+.prose hr {
+  border: 0;
+  border-top: 1px solid var(--color-edge);
+  margin: 2rem 0;
+}
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+.prose th,
+.prose td {
+  border: 1px solid var(--color-edge);
+  padding: 0.5rem 0.7rem;
+  text-align: left;
+}

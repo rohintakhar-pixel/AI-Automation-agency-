@@ -1,0 +1,22 @@
+# Secrets. Nothing in here ever goes into git.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+next-env.d.ts
+
+# Runtime data written by the webhook
+data/orders/
+
+# OS / editor noise
+.DS_Store
+*.log
+.vercel

@@ -1,0 +1,618 @@
+{
+  "name": "Kitset — Shopify support drafter",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "pinData": {},
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "q": "-in:chats -from:me",
+          "readStatus": "unread",
+          "includeSpamTrash": false
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "Check the inbox",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "s1",
+              "name": "storeDomain",
+              "value": "your-store.myshopify.com",
+              "type": "string"
+            },
+            {
+              "id": "s2",
+              "name": "apiVersion",
+              "value": "2024-10",
+              "type": "string"
+            },
+            {
+              "id": "s3",
+              "name": "storeName",
+              "value": "Your Shop",
+              "type": "string"
+            },
+            {
+              "id": "s4",
+              "name": "signOffName",
+              "value": "Your name at Your Shop",
+              "type": "string"
+            },
+            {
+              "id": "s5",
+              "name": "ownerEmail",
+              "value": "you@yourshop.com",
+              "type": "string"
+            },
+            {
+              "id": "s6",
+              "name": "autoSend",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "s7",
+              "name": "model",
+              "value": "gpt-4o-mini",
+              "type": "string"
+            },
+            {
+              "id": "s8",
+              "name": "returnPolicy",
+              "value": "Replace this with your own return policy, word for word. The bot only ever quotes what is written here.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "Your settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "/*\n * Kitset — Shopify support drafter.\n *\n * Everything down to the adapter at the bottom is copied straight from\n * the project's classify.js and shopify.js and is covered by its tests.\n * Editing it here means the tests no longer describe what runs.\n */\n\n/*\n * Reading a support email.\n *\n * Three jobs: throw away mail no human wrote, throw away the quoted history\n * underneath the reply, and work out which of the three questions is being\n * asked. When it is not clearly one of them, say so and let a person read it.\n * Guessing is what produces the wrong reply to a customer.\n */\n\n/** Markers that begin the quoted history under a reply. */\nconst QUOTE_MARKERS = [\n  /^\\s*>/,\n  /^\\s*On .{5,120}\\bwrote:\\s*$/i,\n  /^\\s*-{2,}\\s*Original Message\\s*-{2,}\\s*$/i,\n  /^\\s*_{10,}\\s*$/,\n  /^\\s*From:\\s*.+$/i,\n  /^\\s*Sent from my /i,\n  /^\\s*Begin forwarded message:\\s*$/i,\n];\n\n/**\n * Keeps only what the person wrote this time.\n *\n * Without this, an old thread about a return keeps voting on every new\n * message in the same conversation.\n */\nfunction stripQuotedHistory(body) {\n  const lines = String(body || \"\").split(/\\r?\\n/);\n  const kept = [];\n  for (const line of lines) {\n    if (QUOTE_MARKERS.some((marker) => marker.test(line))) break;\n    kept.push(line);\n  }\n  // A reply that is nothing but quoted text leaves us with nothing. In that\n  // case keep the original, so a human still sees something.\n  const text = kept.join(\"\\n\").trim();\n  return text.length > 0 ? text : String(body || \"\").trim();\n}\n\nconst AUTOMATED_SENDERS = [\n  \"noreply\",\n  \"no-reply\",\n  \"no_reply\",\n  \"donotreply\",\n  \"do-not-reply\",\n  \"mailer-daemon\",\n  \"postmaster\",\n  \"bounce\",\n  \"notifications@shopify.com\",\n  \"mailchimp\",\n  \"newsletter\",\n];\n\nconst AUTOMATED_SUBJECTS = [\n  /out of office/i,\n  /automatic reply/i,\n  /auto[- ]?reply/i,\n  /delivery status notification/i,\n  /undeliverable/i,\n  /returned mail/i,\n  /mail delivery (failed|subsystem)/i,\n  /your order .* (is on the way|has shipped|confirmation)/i,\n];\n\n/**\n * True for machine mail: bounces, newsletters, out-of-office, Shopify's own\n * order confirmations. Answering any of these is at best noise and at worst\n * a loop of two robots emailing each other.\n */\nfunction isAutomated(email) {\n  const headers = {};\n  for (const [rawKey, rawValue] of Object.entries(email.headers || {})) {\n    const key = String(rawKey).toLowerCase();\n    // Some mail parsers hand back the whole header line, name included, so\n    // \"Auto-Submitted: no\" arrives where \"no\" was expected. Left alone, that\n    // would mark ordinary human mail as automatic and answer nobody.\n    const value = String(rawValue)\n      .replace(new RegExp(`^\\\\s*${key.replace(/[^a-z0-9-]/g, \"\")}\\\\s*:\\\\s*`, \"i\"), \"\")\n      .trim();\n    headers[key] = value;\n  }\n\n  if (headers[\"auto-submitted\"] && headers[\"auto-submitted\"] !== \"no\") return true;\n  if (headers[\"x-autoreply\"]) return true;\n  if (headers[\"x-autorespond\"]) return true;\n  if (headers[\"list-unsubscribe\"]) return true;\n  const precedence = (headers[\"precedence\"] || \"\").toLowerCase();\n  if ([\"bulk\", \"junk\", \"list\", \"auto_reply\"].includes(precedence)) return true;\n\n  const from = String(email.from || \"\").toLowerCase();\n  if (AUTOMATED_SENDERS.some((needle) => from.includes(needle))) return true;\n\n  const subject = String(email.subject || \"\");\n  if (AUTOMATED_SUBJECTS.some((pattern) => pattern.test(subject))) return true;\n\n  return false;\n}\n\n/*\n * Category scoring. Phrases are worth 3 because \"delivery address\" tells you\n * far more than \"delivery\" and \"address\" separately. Single words are worth 1.\n */\nconst SIGNALS = {\n  order_status: {\n    phrases: [\n      \"where is my order\",\n      \"where's my order\",\n      \"wheres my order\",\n      \"where is my parcel\",\n      \"where is my package\",\n      \"track my order\",\n      \"tracking number\",\n      \"tracking info\",\n      \"order status\",\n      \"status of my order\",\n      \"when will it arrive\",\n      \"when will my order\",\n      \"has it shipped\",\n      \"has my order shipped\",\n      \"not arrived\",\n      \"hasn't arrived\",\n      \"hasnt arrived\",\n      \"still waiting\",\n      \"no sign of\",\n      \"any update on my order\",\n    ],\n    words: [\n      \"tracking\",\n      \"track\",\n      \"shipped\",\n      \"shipping\",\n      \"dispatch\",\n      \"dispatched\",\n      \"delivery\",\n      \"delivered\",\n      \"arrive\",\n      \"arrival\",\n      \"eta\",\n      \"late\",\n      \"delayed\",\n      \"waiting\",\n    ],\n  },\n  return_request: {\n    phrases: [\n      \"want to return\",\n      \"like to return\",\n      \"can i return\",\n      \"send it back\",\n      \"send them back\",\n      \"return this\",\n      \"return it\",\n      \"return label\",\n      \"return policy\",\n      \"refund me\",\n      \"money back\",\n      \"doesn't fit\",\n      \"does not fit\",\n      \"wrong item\",\n      \"wrong size\",\n      \"arrived damaged\",\n      \"arrived broken\",\n      \"start a return\",\n    ],\n    words: [\n      \"return\",\n      \"returning\",\n      \"refund\",\n      \"refunded\",\n      \"exchange\",\n      \"rma\",\n      \"faulty\",\n      \"damaged\",\n      \"broken\",\n      \"defective\",\n    ],\n  },\n  address_change: {\n    phrases: [\n      \"change my address\",\n      \"change the address\",\n      \"wrong address\",\n      \"update my address\",\n      \"update the address\",\n      \"new address\",\n      \"different address\",\n      \"delivery address\",\n      \"shipping address\",\n      \"i have moved\",\n      \"i've moved\",\n      \"ive moved\",\n      \"deliver to a different\",\n      \"send it to a different\",\n    ],\n    words: [\"address\", \"moved\", \"relocate\", \"relocated\"],\n  },\n};\n\nfunction scoreCategory(text, signals) {\n  let score = 0;\n  const hits = [];\n  for (const phrase of signals.phrases) {\n    if (text.includes(phrase)) {\n      score += 3;\n      hits.push(phrase);\n    }\n  }\n  const words = text.split(/[^a-z0-9']+/).filter(Boolean);\n  const wordSet = new Set(words);\n  for (const word of signals.words) {\n    if (wordSet.has(word)) {\n      score += 1;\n      hits.push(word);\n    }\n  }\n  return { score, hits };\n}\n\n/**\n * Which of the three questions is this?\n *\n * Returns one of: order_status, return_request, address_change, unclear.\n * \"unclear\" covers both \"no idea\" and \"two of them at once\", because both\n * need the same thing: a person.\n */\nfunction categorise(text) {\n  const lower = String(text || \"\").toLowerCase();\n  const scores = {};\n  const hits = {};\n  for (const [name, signals] of Object.entries(SIGNALS)) {\n    const result = scoreCategory(lower, signals);\n    scores[name] = result.score;\n    hits[name] = result.hits;\n  }\n\n  const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1]);\n  const [bestName, bestScore] = ranked[0];\n  const secondScore = ranked[1][1];\n\n  if (bestScore === 0) {\n    return { category: \"unclear\", reason: \"no_signal\", scores, hits: [] };\n  }\n  // Two categories both asked about means the customer asked two things. A\n  // reply that answers one of them and ignores the other reads worse than no\n  // reply at all.\n  //\n  // The runner-up has to clear two bars: an absolute one, so that a single\n  // stray word like \"delivery\" in an address question is not treated as a\n  // second question; and a relative one, so a passing mention next to a much\n  // stronger signal does not stop a routine reply.\n  const RUNNER_UP_FLOOR = 3; // one whole phrase, or three separate words\n  if (secondScore >= RUNNER_UP_FLOOR && secondScore >= bestScore * 0.25) {\n    return { category: \"unclear\", reason: \"mixed_signals\", scores, hits: [] };\n  }\n\n  return { category: bestName, reason: \"clear\", scores, hits: hits[bestName] };\n}\n\n/**\n * Pulls an order number out of the text.\n *\n * Shopify order names normally look like #1001, and stores often add a\n * prefix or suffix. Anything found is returned with the # kept, because that\n * is the form Shopify's own search expects.\n */\nfunction extractOrderNumber(text) {\n  const source = String(text || \"\");\n  const patterns = [\n    /#\\s?([A-Z]{0,6}\\d{3,10}[A-Z]{0,3})\\b/i,\n    /\\border\\s*(?:number|no\\.?|#|id)?\\s*[:\\-]?\\s*([A-Z]{0,6}\\d{3,10}[A-Z]{0,3})\\b/i,\n    /\\b(?:order|confirmation)\\s+([A-Z]{1,6}[-_]?\\d{3,10})\\b/i,\n  ];\n  for (const pattern of patterns) {\n    const match = source.match(pattern);\n    if (match && match[1]) {\n      return `#${match[1].toUpperCase().replace(/^#/, \"\")}`;\n    }\n  }\n  return null;\n}\n\n/** The sender's address, taken from the From header rather than the body. */\nfunction extractSenderEmail(from) {\n  const source = String(from || \"\");\n  const angled = source.match(/<([^<>@\\s]+@[^<>@\\s]+\\.[a-z]{2,})>/i);\n  if (angled) return angled[1].toLowerCase();\n  const bare = source.match(/([^<>@\\s]+@[^<>@\\s]+\\.[a-z]{2,})/i);\n  return bare ? bare[1].toLowerCase() : null;\n}\n\n/**\n * The whole read, in one call.\n *\n * Input:  { from, subject, body, headers }\n * Output: { handle, category, reason, orderNumber, customerEmail, cleanBody }\n */\nfunction readEmail(email) {\n  const cleanBody = stripQuotedHistory(email.body);\n\n  if (isAutomated(email)) {\n    return {\n      handle: false,\n      category: \"ignored\",\n      reason: \"automated_mail\",\n      orderNumber: null,\n      customerEmail: extractSenderEmail(email.from),\n      cleanBody,\n    };\n  }\n\n  if (cleanBody.replace(/\\s+/g, \"\").length < 10) {\n    return {\n      handle: false,\n      category: \"unclear\",\n      reason: \"empty_message\",\n      orderNumber: null,\n      customerEmail: extractSenderEmail(email.from),\n      cleanBody,\n    };\n  }\n\n  // The subject line is part of the question, but only this message's subject.\n  const searchText = `${email.subject || \"\"}\\n${cleanBody}`;\n  const verdict = categorise(searchText);\n\n  return {\n    handle: verdict.category !== \"unclear\",\n    category: verdict.category,\n    reason: verdict.reason,\n    orderNumber: extractOrderNumber(searchText),\n    customerEmail: extractSenderEmail(email.from),\n    cleanBody,\n  };\n}\n\n/*\n * Talking to Shopify.\n *\n * One GraphQL query against the Admin API, asked either by order name or by\n * customer email. Read-only: the scopes this bot asks for are read_orders and\n * read_customers, and nothing here writes anything back.\n */\n\n/**\n * Escapes a value going into Shopify's search syntax.\n *\n * Shopify's query strings are quoted, so an unescaped quote or backslash in a\n * customer's own text would change the meaning of the search. This is the\n * same class of problem as SQL injection, on a smaller stage.\n */\nfunction escapeSearchValue(value) {\n  return String(value == null ? \"\" : value)\n    .replace(/\\\\/g, \"\\\\\\\\\")\n    .replace(/\"/g, '\\\\\"');\n}\n\nconst ORDER_FIELDS = `\n  id\n  name\n  createdAt\n  displayFinancialStatus\n  displayFulfillmentStatus\n  cancelledAt\n  email\n  customer { firstName lastName email }\n  shippingAddress {\n    name address1 address2 city province zip country\n  }\n  lineItems(first: 20) {\n    edges { node { title quantity } }\n  }\n  fulfillments(first: 10) {\n    status\n    trackingInfo { number url company }\n  }\n`;\n\nconst ORDER_QUERY = `query FindOrders($search: String!) {\n  orders(first: 5, query: $search, sortKey: CREATED_AT, reverse: true) {\n    edges { node {${ORDER_FIELDS}} }\n  }\n}`;\n\n/**\n * Builds the search.\n *\n * By order number when we have one, because that is exact. By email address\n * otherwise, taking the most recent order, because that is what someone\n * asking \"where is my order\" almost always means.\n */\nfunction buildOrderSearch({ orderNumber, customerEmail }) {\n  if (orderNumber) {\n    return {\n      found: true,\n      by: \"order_number\",\n      search: `name:\"${escapeSearchValue(orderNumber)}\"`,\n    };\n  }\n  if (customerEmail) {\n    return {\n      found: true,\n      by: \"customer_email\",\n      search: `email:\"${escapeSearchValue(customerEmail)}\"`,\n    };\n  }\n  return { found: false, by: null, search: null };\n}\n\n/** The request body to POST at the Admin GraphQL endpoint. */\nfunction buildRequestBody(searchString) {\n  return { query: ORDER_QUERY, variables: { search: searchString } };\n}\n\n/** The Admin API address for a store, at a pinned API version. */\nfunction adminApiUrl(storeDomain, apiVersion) {\n  const domain = String(storeDomain || \"\")\n    .trim()\n    .replace(/^https?:\\/\\//i, \"\")\n    .replace(/\\/+$/, \"\");\n  const version = String(apiVersion || \"\").trim() || \"2024-10\";\n  return `https://${domain}/admin/api/${version}/graphql.json`;\n}\n\n/** Flattens one order into the handful of facts a reply actually needs. */\nfunction summariseOrder(order) {\n  const fulfillments = Array.isArray(order.fulfillments) ? order.fulfillments : [];\n  const tracking = [];\n  for (const fulfillment of fulfillments) {\n    for (const info of fulfillment.trackingInfo || []) {\n      if (info && info.number) {\n        tracking.push({\n          number: String(info.number),\n          url: info.url ? String(info.url) : null,\n          company: info.company ? String(info.company) : null,\n        });\n      }\n    }\n  }\n\n  const address = order.shippingAddress || null;\n  const items = ((order.lineItems || {}).edges || []).map((edge) => ({\n    title: edge.node.title,\n    quantity: edge.node.quantity,\n  }));\n\n  const customer = order.customer || {};\n  const customerName = [customer.firstName, customer.lastName]\n    .filter(Boolean)\n    .join(\" \")\n    .trim();\n\n  return {\n    id: order.id,\n    orderNumber: order.name,\n    placedAt: order.createdAt,\n    financialStatus: order.displayFinancialStatus || null,\n    fulfillmentStatus: order.displayFulfillmentStatus || null,\n    cancelled: Boolean(order.cancelledAt),\n    cancelledAt: order.cancelledAt || null,\n    email: order.email || customer.email || null,\n    customerName: customerName || null,\n    items,\n    tracking,\n    shippingAddress: address\n      ? {\n          name: address.name || null,\n          line1: address.address1 || null,\n          line2: address.address2 || null,\n          city: address.city || null,\n          province: address.province || null,\n          zip: address.zip || null,\n          country: address.country || null,\n        }\n      : null,\n  };\n}\n\n/**\n * Reads Shopify's answer, including the ways it says no.\n *\n * GraphQL answers with HTTP 200 and an \"errors\" list, so a naive check on the\n * status code would treat a permissions failure as a successful empty search.\n * That would tell a customer their order does not exist when the real problem\n * is a missing scope.\n */\nfunction parseOrderResponse(response) {\n  if (!response || typeof response !== \"object\") {\n    return { ok: false, problem: \"no_response\", orders: [] };\n  }\n\n  // Shopify answers a bad token with a plain string in \"errors\", and a bad\n  // query with a list of objects. Both are failures and both must be read.\n  const hasErrors =\n    (Array.isArray(response.errors) && response.errors.length > 0) ||\n    (typeof response.errors === \"string\" && response.errors.trim() !== \"\");\n\n  if (hasErrors) {\n    const messages = Array.isArray(response.errors)\n      ? response.errors\n          .map((error) => (error && error.message ? String(error.message) : \"unknown error\"))\n          .join(\"; \")\n      : String(response.errors);\n    const permissionProblem = /access denied|not approved|required access scope|unauthorized/i.test(\n      messages,\n    );\n    return {\n      ok: false,\n      problem: permissionProblem ? \"permission_denied\" : \"api_error\",\n      message: messages,\n      orders: [],\n    };\n  }\n\n  const edges =\n    response.data && response.data.orders && Array.isArray(response.data.orders.edges)\n      ? response.data.orders.edges\n      : null;\n\n  if (!edges) {\n    return { ok: false, problem: \"unexpected_shape\", orders: [] };\n  }\n\n  const orders = edges\n    .filter((edge) => edge && edge.node)\n    .map((edge) => summariseOrder(edge.node));\n\n  if (orders.length === 0) {\n    return { ok: true, problem: \"not_found\", orders: [] };\n  }\n\n  return { ok: true, problem: null, orders };\n}\n\n/**\n * Picks the order to reply about.\n *\n * Searching by order number should give exactly one. Searching by email can\n * give several, and the newest is the one being asked about. If an email\n * search turns up several recent orders, say so, because a reply about the\n * wrong one is worse than a question.\n */\nfunction chooseOrder(parsed, searchedBy) {\n  if (!parsed.ok || parsed.orders.length === 0) {\n    return { order: null, ambiguous: false };\n  }\n  if (searchedBy === \"order_number\") {\n    return { order: parsed.orders[0], ambiguous: parsed.orders.length > 1 };\n  }\n  const openOrders = parsed.orders.filter((order) => !order.cancelled);\n  const pool = openOrders.length > 0 ? openOrders : parsed.orders;\n  // Two orders in the last week, by email, with no order number given: a\n  // person should decide which one they meant.\n  const recent = pool.filter((order) => {\n    const placed = Date.parse(order.placedAt);\n    if (Number.isNaN(placed)) return false;\n    return Date.now() - placed < 7 * 24 * 60 * 60 * 1000;\n  });\n  return { order: pool[0], ambiguous: recent.length > 1 };\n}\n\n// ---- n8n wiring. The tested logic is above this line. ----\n// Input: the Gmail trigger's raw output, with your settings merged onto it.\n// Output: one item per email, carrying the settings, the email, and the read.\n\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json;\n\n  const settings = {\n    storeDomain: j.storeDomain,\n    apiVersion: j.apiVersion,\n    storeName: j.storeName,\n    signOffName: j.signOffName,\n    ownerEmail: j.ownerEmail,\n    autoSend: j.autoSend === true || j.autoSend === 'true',\n    model: j.model,\n    returnPolicy: j.returnPolicy,\n  };\n\n  // The Gmail trigger with Simplify switched off returns a parsed message:\n  // \"text\" is the plain-text body, \"from\" is an object with a \"text\" field,\n  // and \"headers\" is a map of header name to the whole header line.\n  const from =\n    (j.from && (j.from.text || j.from.value?.[0]?.address)) ||\n    j.From ||\n    j.headers?.from ||\n    '';\n\n  const email = {\n    from: String(from),\n    subject: String(j.subject || j.Subject || ''),\n    body: String(j.text || j.textPlain || j.html || j.snippet || ''),\n    headers: j.headers || {},\n  };\n\n  const read = readEmail(email);\n\n  // Work out the Shopify search here too, so the next step can ask one\n  // question: is there something to handle and something to look it up by?\n  const search = buildOrderSearch({\n    orderNumber: read.orderNumber,\n    customerEmail: read.customerEmail,\n  });\n\n  out.push({\n    json: {\n      messageId: j.id || j.messageId || null,\n      threadId: j.threadId || null,\n      settings,\n      email,\n      read,\n      shopify: {\n        canSearch: search.found,\n        searchedBy: search.by,\n        url: search.found ? adminApiUrl(settings.storeDomain, settings.apiVersion) : null,\n        body: search.found ? buildRequestBody(search.search) : null,\n      },\n    },\n  });\n}\n\nreturn out;\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "Read the email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "h1",
+              "leftValue": "={{ $json.read.handle }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "h2",
+              "leftValue": "={{ $json.shopify.canSearch }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "Do we handle it?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.shopify.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.shopify.body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "Ask Shopify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -80,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "/*\n * Kitset — Shopify support drafter.\n *\n * Everything down to the adapter at the bottom is copied straight from\n * the project's shopify.js and decide.js and is covered by its tests.\n * Editing it here means the tests no longer describe what runs.\n */\n\n/*\n * Talking to Shopify.\n *\n * One GraphQL query against the Admin API, asked either by order name or by\n * customer email. Read-only: the scopes this bot asks for are read_orders and\n * read_customers, and nothing here writes anything back.\n */\n\n/**\n * Escapes a value going into Shopify's search syntax.\n *\n * Shopify's query strings are quoted, so an unescaped quote or backslash in a\n * customer's own text would change the meaning of the search. This is the\n * same class of problem as SQL injection, on a smaller stage.\n */\nfunction escapeSearchValue(value) {\n  return String(value == null ? \"\" : value)\n    .replace(/\\\\/g, \"\\\\\\\\\")\n    .replace(/\"/g, '\\\\\"');\n}\n\nconst ORDER_FIELDS = `\n  id\n  name\n  createdAt\n  displayFinancialStatus\n  displayFulfillmentStatus\n  cancelledAt\n  email\n  customer { firstName lastName email }\n  shippingAddress {\n    name address1 address2 city province zip country\n  }\n  lineItems(first: 20) {\n    edges { node { title quantity } }\n  }\n  fulfillments(first: 10) {\n    status\n    trackingInfo { number url company }\n  }\n`;\n\nconst ORDER_QUERY = `query FindOrders($search: String!) {\n  orders(first: 5, query: $search, sortKey: CREATED_AT, reverse: true) {\n    edges { node {${ORDER_FIELDS}} }\n  }\n}`;\n\n/**\n * Builds the search.\n *\n * By order number when we have one, because that is exact. By email address\n * otherwise, taking the most recent order, because that is what someone\n * asking \"where is my order\" almost always means.\n */\nfunction buildOrderSearch({ orderNumber, customerEmail }) {\n  if (orderNumber) {\n    return {\n      found: true,\n      by: \"order_number\",\n      search: `name:\"${escapeSearchValue(orderNumber)}\"`,\n    };\n  }\n  if (customerEmail) {\n    return {\n      found: true,\n      by: \"customer_email\",\n      search: `email:\"${escapeSearchValue(customerEmail)}\"`,\n    };\n  }\n  return { found: false, by: null, search: null };\n}\n\n/** The request body to POST at the Admin GraphQL endpoint. */\nfunction buildRequestBody(searchString) {\n  return { query: ORDER_QUERY, variables: { search: searchString } };\n}\n\n/** The Admin API address for a store, at a pinned API version. */\nfunction adminApiUrl(storeDomain, apiVersion) {\n  const domain = String(storeDomain || \"\")\n    .trim()\n    .replace(/^https?:\\/\\//i, \"\")\n    .replace(/\\/+$/, \"\");\n  const version = String(apiVersion || \"\").trim() || \"2024-10\";\n  return `https://${domain}/admin/api/${version}/graphql.json`;\n}\n\n/** Flattens one order into the handful of facts a reply actually needs. */\nfunction summariseOrder(order) {\n  const fulfillments = Array.isArray(order.fulfillments) ? order.fulfillments : [];\n  const tracking = [];\n  for (const fulfillment of fulfillments) {\n    for (const info of fulfillment.trackingInfo || []) {\n      if (info && info.number) {\n        tracking.push({\n          number: String(info.number),\n          url: info.url ? String(info.url) : null,\n          company: info.company ? String(info.company) : null,\n        });\n      }\n    }\n  }\n\n  const address = order.shippingAddress || null;\n  const items = ((order.lineItems || {}).edges || []).map((edge) => ({\n    title: edge.node.title,\n    quantity: edge.node.quantity,\n  }));\n\n  const customer = order.customer || {};\n  const customerName = [customer.firstName, customer.lastName]\n    .filter(Boolean)\n    .join(\" \")\n    .trim();\n\n  return {\n    id: order.id,\n    orderNumber: order.name,\n    placedAt: order.createdAt,\n    financialStatus: order.displayFinancialStatus || null,\n    fulfillmentStatus: order.displayFulfillmentStatus || null,\n    cancelled: Boolean(order.cancelledAt),\n    cancelledAt: order.cancelledAt || null,\n    email: order.email || customer.email || null,\n    customerName: customerName || null,\n    items,\n    tracking,\n    shippingAddress: address\n      ? {\n          name: address.name || null,\n          line1: address.address1 || null,\n          line2: address.address2 || null,\n          city: address.city || null,\n          province: address.province || null,\n          zip: address.zip || null,\n          country: address.country || null,\n        }\n      : null,\n  };\n}\n\n/**\n * Reads Shopify's answer, including the ways it says no.\n *\n * GraphQL answers with HTTP 200 and an \"errors\" list, so a naive check on the\n * status code would treat a permissions failure as a successful empty search.\n * That would tell a customer their order does not exist when the real problem\n * is a missing scope.\n */\nfunction parseOrderResponse(response) {\n  if (!response || typeof response !== \"object\") {\n    return { ok: false, problem: \"no_response\", orders: [] };\n  }\n\n  // Shopify answers a bad token with a plain string in \"errors\", and a bad\n  // query with a list of objects. Both are failures and both must be read.\n  const hasErrors =\n    (Array.isArray(response.errors) && response.errors.length > 0) ||\n    (typeof response.errors === \"string\" && response.errors.trim() !== \"\");\n\n  if (hasErrors) {\n    const messages = Array.isArray(response.errors)\n      ? response.errors\n          .map((error) => (error && error.message ? String(error.message) : \"unknown error\"))\n          .join(\"; \")\n      : String(response.errors);\n    const permissionProblem = /access denied|not approved|required access scope|unauthorized/i.test(\n      messages,\n    );\n    return {\n      ok: false,\n      problem: permissionProblem ? \"permission_denied\" : \"api_error\",\n      message: messages,\n      orders: [],\n    };\n  }\n\n  const edges =\n    response.data && response.data.orders && Array.isArray(response.data.orders.edges)\n      ? response.data.orders.edges\n      : null;\n\n  if (!edges) {\n    return { ok: false, problem: \"unexpected_shape\", orders: [] };\n  }\n\n  const orders = edges\n    .filter((edge) => edge && edge.node)\n    .map((edge) => summariseOrder(edge.node));\n\n  if (orders.length === 0) {\n    return { ok: true, problem: \"not_found\", orders: [] };\n  }\n\n  return { ok: true, problem: null, orders };\n}\n\n/**\n * Picks the order to reply about.\n *\n * Searching by order number should give exactly one. Searching by email can\n * give several, and the newest is the one being asked about. If an email\n * search turns up several recent orders, say so, because a reply about the\n * wrong one is worse than a question.\n */\nfunction chooseOrder(parsed, searchedBy) {\n  if (!parsed.ok || parsed.orders.length === 0) {\n    return { order: null, ambiguous: false };\n  }\n  if (searchedBy === \"order_number\") {\n    return { order: parsed.orders[0], ambiguous: parsed.orders.length > 1 };\n  }\n  const openOrders = parsed.orders.filter((order) => !order.cancelled);\n  const pool = openOrders.length > 0 ? openOrders : parsed.orders;\n  // Two orders in the last week, by email, with no order number given: a\n  // person should decide which one they meant.\n  const recent = pool.filter((order) => {\n    const placed = Date.parse(order.placedAt);\n    if (Number.isNaN(placed)) return false;\n    return Date.now() - placed < 7 * 24 * 60 * 60 * 1000;\n  });\n  return { order: pool[0], ambiguous: recent.length > 1 };\n}\n\n/*\n * Send it, or put it in front of the owner?\n *\n * The bias is deliberate and one-directional. A draft the owner glances at\n * costs ten seconds. A wrong reply sent to a customer costs the customer, the\n * refund, and the review. So auto-send is narrow on purpose, and everything\n * that is not plainly routine waits for a person.\n */\n\n/** The only case that may ever be sent without a human looking at it. */\nfunction mayAutoSend({ settings, read, chosen, parsed }) {\n  const reasons = [];\n\n  if (!settings || settings.autoSend !== true) {\n    reasons.push(\"auto-send is switched off in the settings\");\n  }\n  if (read.category !== \"order_status\") {\n    reasons.push(\n      \"auto-send only ever covers a plain 'where is my order' question\",\n    );\n  }\n  if (read.reason !== \"clear\") {\n    reasons.push(\"the message did not read as one clear question\");\n  }\n  // An email-address match is a guess about which order is meant. An order\n  // number is not.\n  if (chosen.searchedBy !== \"order_number\") {\n    reasons.push(\"the order was found by email address, not by order number\");\n  }\n  if (chosen.ambiguous) {\n    reasons.push(\"more than one recent order could be the one meant\");\n  }\n\n  const order = chosen.order;\n  if (!order) {\n    reasons.push(\"no order was found\");\n    return { allowed: false, reasons };\n  }\n  if (order.cancelled) {\n    reasons.push(\"the order is cancelled\");\n  }\n  if (/refund/i.test(String(order.financialStatus || \"\"))) {\n    reasons.push(\"the order has been refunded\");\n  }\n  const status = String(order.fulfillmentStatus || \"\").toUpperCase();\n  if (status !== \"FULFILLED\") {\n    reasons.push(\n      `the order is not shipped yet (Shopify says ${status || \"nothing\"})`,\n    );\n  }\n  if (!order.tracking || order.tracking.length === 0) {\n    reasons.push(\"the order has no tracking number on it\");\n  }\n  if (parsed && parsed.problem) {\n    reasons.push(`Shopify reported ${parsed.problem}`);\n  }\n\n  return { allowed: reasons.length === 0, reasons };\n}\n\n/**\n * The whole decision, including what to do when there is nothing to reply\n * about.\n *\n * Returns an action, always one of:\n *   ignore  - machine mail, nothing happens\n *   draft   - write a reply and leave it for the owner\n *   send    - write a reply and send it\n *   escalate- do not write a reply, tell the owner what went wrong\n */\nfunction decide({ settings, read, chosen, parsed }) {\n  if (!read.handle && read.category === \"ignored\") {\n    return { action: \"ignore\", why: \"The message was not written by a person.\" };\n  }\n\n  if (!read.handle) {\n    return {\n      action: \"escalate\",\n      why:\n        read.reason === \"mixed_signals\"\n          ? \"The message asks about more than one thing at once.\"\n          : \"The message is not a clear order-status, return, or address question.\",\n    };\n  }\n\n  if (parsed && parsed.problem === \"permission_denied\") {\n    return {\n      action: \"escalate\",\n      why:\n        \"Shopify refused the request. The access token is probably missing \" +\n        \"the read_orders or read_customers scope.\",\n    };\n  }\n  if (parsed && (parsed.problem === \"api_error\" || parsed.problem === \"unexpected_shape\")) {\n    return {\n      action: \"escalate\",\n      why: `Shopify did not answer as expected (${parsed.problem}). No reply was written.`,\n    };\n  }\n  if (!chosen.order) {\n    return {\n      action: \"escalate\",\n      why:\n        \"No matching order was found in Shopify, so anything written would \" +\n        \"be a guess.\",\n    };\n  }\n\n  const verdict = mayAutoSend({ settings, read, chosen, parsed });\n  if (verdict.allowed) {\n    return { action: \"send\", why: \"Routine order-status question on a shipped order.\" };\n  }\n\n  return {\n    action: \"draft\",\n    why: `Left for you to check because ${verdict.reasons[0]}.`,\n    allReasons: verdict.reasons,\n  };\n}\n\n// ---- n8n wiring. The tested logic is above this line. ----\n// Reads Shopify's answer and decides what happens next.\n//\n// The HTTP node replaces the item with the response, so the context is taken\n// from the true branch of \"Do we handle it?\", which lines up one for one with\n// what was sent.\n\nconst context = $('Do we handle it?').all(0);\nconst responses = $input.all();\nconst out = [];\n\nfor (let i = 0; i < responses.length; i++) {\n  const j = (context[i] || context[0]).json;\n  const raw = responses[i].json;\n\n  // With \"Never Error\" switched on, an HTTP failure arrives here as data\n  // rather than stopping the run. That is on purpose: the owner gets told\n  // what went wrong instead of the workflow dying quietly.\n  const parsed = parseOrderResponse(raw);\n  const picked = chooseOrder(parsed, j.shopify.searchedBy);\n  const chosen = { ...picked, searchedBy: j.shopify.searchedBy };\n\n  const decision = decide({\n    settings: j.settings,\n    read: j.read,\n    chosen,\n    parsed,\n  });\n\n  out.push({\n    json: {\n      ...j,\n      order: chosen.order,\n      orderAmbiguous: chosen.ambiguous,\n      shopifyProblem: parsed.problem || null,\n      decision,\n    },\n  });\n}\n\nreturn out;\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "Read Shopify's answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        140,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "r1",
+              "leftValue": "={{ $json.decision.action }}",
+              "rightValue": "escalate",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000007",
+      "name": "Is there a reply to write?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        360,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "/*\n * Kitset — Shopify support drafter.\n *\n * Everything down to the adapter at the bottom is copied straight from\n * the project's prompt.js and is covered by its tests.\n * Editing it here means the tests no longer describe what runs.\n */\n\n/*\n * What the model is told.\n *\n * Two rules do the heavy lifting: use only the facts given, and never invent\n * a tracking number or a date. Everything else is tone.\n */\n\nfunction describeOrder(order) {\n  if (!order) return \"No order was found.\";\n  const lines = [];\n  lines.push(`Order number: ${order.orderNumber}`);\n  lines.push(`Placed: ${order.placedAt}`);\n  lines.push(`Payment status: ${order.financialStatus || \"unknown\"}`);\n  lines.push(`Shipping status: ${order.fulfillmentStatus || \"unknown\"}`);\n  if (order.cancelled) lines.push(`Cancelled: yes, on ${order.cancelledAt}`);\n  if (order.customerName) lines.push(`Customer name: ${order.customerName}`);\n\n  if (order.items && order.items.length > 0) {\n    lines.push(\"Items:\");\n    for (const item of order.items) {\n      lines.push(`  - ${item.quantity} x ${item.title}`);\n    }\n  }\n\n  if (order.tracking && order.tracking.length > 0) {\n    lines.push(\"Tracking:\");\n    for (const entry of order.tracking) {\n      const parts = [entry.number];\n      if (entry.company) parts.push(`carrier ${entry.company}`);\n      if (entry.url) parts.push(entry.url);\n      lines.push(`  - ${parts.join(\", \")}`);\n    }\n  } else {\n    lines.push(\"Tracking: none on this order yet.\");\n  }\n\n  const address = order.shippingAddress;\n  if (address) {\n    const parts = [\n      address.name,\n      address.line1,\n      address.line2,\n      address.city,\n      address.province,\n      address.zip,\n      address.country,\n    ].filter(Boolean);\n    lines.push(`Shipping address on file: ${parts.join(\", \")}`);\n  }\n\n  return lines.join(\"\\n\");\n}\n\nconst CATEGORY_GUIDANCE = {\n  order_status:\n    \"Answer where the order is. If there is a tracking number, quote it \" +\n    \"exactly as given and include the tracking link if there is one. If the \" +\n    \"order has not shipped yet, say so plainly and do not promise a date.\",\n  return_request:\n    \"Answer using the store's return policy below, and only that policy. If \" +\n    \"the policy does not cover what they asked, say the owner will confirm.\",\n  address_change:\n    \"Say whether the order has shipped. If it has not shipped, say the \" +\n    \"address can still be changed and ask them to send the full new address. \" +\n    \"If it has shipped, say so and do not promise a redirect.\",\n};\n\nfunction buildMessages({ category, order, customerMessage, settings }) {\n  const storeName = (settings && settings.storeName) || \"the store\";\n  const signOff = (settings && settings.signOffName) || storeName;\n  const policy =\n    (settings && settings.returnPolicy) ||\n    \"No return policy has been set. Say the owner will confirm the details.\";\n\n  const system = [\n    `You write customer support replies for ${storeName}, a small online shop.`,\n    \"\",\n    \"Hard rules:\",\n    \"1. Use only the order facts given below. Never invent a tracking number, a\",\n    \"   carrier, a date, an amount, or a policy.\",\n    \"2. If a fact is not in the order data, do not state it. Say the owner will\",\n    \"   confirm instead.\",\n    \"3. Quote the order number and any tracking number exactly as written.\",\n    \"4. Never leave a placeholder such as [Customer Name] in the reply. If you\",\n    \"   do not know the customer's name, open with 'Hi there'.\",\n    \"5. Plain English. Four short paragraphs at most. No bullet lists.\",\n    \"6. Write only the body of the email. No subject line, no quoted history.\",\n    `7. Sign off as ${signOff}.`,\n    \"\",\n    `For this message: ${CATEGORY_GUIDANCE[category] || CATEGORY_GUIDANCE.order_status}`,\n    \"\",\n    \"The store's return policy, word for word:\",\n    policy,\n  ].join(\"\\n\");\n\n  const user = [\n    \"Order data from Shopify:\",\n    describeOrder(order),\n    \"\",\n    \"The customer wrote:\",\n    String(customerMessage || \"\").slice(0, 4000),\n  ].join(\"\\n\");\n\n  return [\n    { role: \"system\", content: system },\n    { role: \"user\", content: user },\n  ];\n}\n\nfunction buildRequestBody({ model, messages }) {\n  return {\n    model: model || \"gpt-4o-mini\",\n    messages,\n    temperature: 0.2,\n    max_tokens: 600,\n  };\n}\n\n/** Pulls the reply text out of OpenAI's answer, or says why it could not. */\nfunction readCompletion(response) {\n  if (!response || typeof response !== \"object\") {\n    return { ok: false, text: \"\", problem: \"no_response\" };\n  }\n  if (response.error) {\n    return {\n      ok: false,\n      text: \"\",\n      problem: `openai_error: ${response.error.message || \"unknown\"}`,\n    };\n  }\n  const choice =\n    Array.isArray(response.choices) && response.choices.length > 0\n      ? response.choices[0]\n      : null;\n  const text = choice && choice.message ? String(choice.message.content || \"\") : \"\";\n  if (text.trim() === \"\") {\n    return { ok: false, text: \"\", problem: \"empty_completion\" };\n  }\n  return { ok: true, text: text.trim(), problem: null };\n}\n\n// ---- n8n wiring. The tested logic is above this line. ----\n// Builds the OpenAI request. Nothing is sent yet.\n\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json;\n\n  const messages = buildMessages({\n    category: j.read.category,\n    order: j.order,\n    customerMessage: j.read.cleanBody,\n    settings: j.settings,\n  });\n\n  out.push({\n    json: {\n      ...j,\n      openai: {\n        url: 'https://api.openai.com/v1/chat/completions',\n        body: buildRequestBody({ model: j.settings.model, messages }),\n      },\n    },\n  });\n}\n\nreturn out;\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000000008",
+      "name": "Build the prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        580,
+        -260
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.openai.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.openai.body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 120000
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000009",
+      "name": "Ask OpenAI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        -260
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "/*\n * Kitset — Shopify support drafter.\n *\n * Everything down to the adapter at the bottom is copied straight from\n * the project's prompt.js and draftcheck.js and is covered by its tests.\n * Editing it here means the tests no longer describe what runs.\n */\n\n/*\n * What the model is told.\n *\n * Two rules do the heavy lifting: use only the facts given, and never invent\n * a tracking number or a date. Everything else is tone.\n */\n\nfunction describeOrder(order) {\n  if (!order) return \"No order was found.\";\n  const lines = [];\n  lines.push(`Order number: ${order.orderNumber}`);\n  lines.push(`Placed: ${order.placedAt}`);\n  lines.push(`Payment status: ${order.financialStatus || \"unknown\"}`);\n  lines.push(`Shipping status: ${order.fulfillmentStatus || \"unknown\"}`);\n  if (order.cancelled) lines.push(`Cancelled: yes, on ${order.cancelledAt}`);\n  if (order.customerName) lines.push(`Customer name: ${order.customerName}`);\n\n  if (order.items && order.items.length > 0) {\n    lines.push(\"Items:\");\n    for (const item of order.items) {\n      lines.push(`  - ${item.quantity} x ${item.title}`);\n    }\n  }\n\n  if (order.tracking && order.tracking.length > 0) {\n    lines.push(\"Tracking:\");\n    for (const entry of order.tracking) {\n      const parts = [entry.number];\n      if (entry.company) parts.push(`carrier ${entry.company}`);\n      if (entry.url) parts.push(entry.url);\n      lines.push(`  - ${parts.join(\", \")}`);\n    }\n  } else {\n    lines.push(\"Tracking: none on this order yet.\");\n  }\n\n  const address = order.shippingAddress;\n  if (address) {\n    const parts = [\n      address.name,\n      address.line1,\n      address.line2,\n      address.city,\n      address.province,\n      address.zip,\n      address.country,\n    ].filter(Boolean);\n    lines.push(`Shipping address on file: ${parts.join(\", \")}`);\n  }\n\n  return lines.join(\"\\n\");\n}\n\nconst CATEGORY_GUIDANCE = {\n  order_status:\n    \"Answer where the order is. If there is a tracking number, quote it \" +\n    \"exactly as given and include the tracking link if there is one. If the \" +\n    \"order has not shipped yet, say so plainly and do not promise a date.\",\n  return_request:\n    \"Answer using the store's return policy below, and only that policy. If \" +\n    \"the policy does not cover what they asked, say the owner will confirm.\",\n  address_change:\n    \"Say whether the order has shipped. If it has not shipped, say the \" +\n    \"address can still be changed and ask them to send the full new address. \" +\n    \"If it has shipped, say so and do not promise a redirect.\",\n};\n\nfunction buildMessages({ category, order, customerMessage, settings }) {\n  const storeName = (settings && settings.storeName) || \"the store\";\n  const signOff = (settings && settings.signOffName) || storeName;\n  const policy =\n    (settings && settings.returnPolicy) ||\n    \"No return policy has been set. Say the owner will confirm the details.\";\n\n  const system = [\n    `You write customer support replies for ${storeName}, a small online shop.`,\n    \"\",\n    \"Hard rules:\",\n    \"1. Use only the order facts given below. Never invent a tracking number, a\",\n    \"   carrier, a date, an amount, or a policy.\",\n    \"2. If a fact is not in the order data, do not state it. Say the owner will\",\n    \"   confirm instead.\",\n    \"3. Quote the order number and any tracking number exactly as written.\",\n    \"4. Never leave a placeholder such as [Customer Name] in the reply. If you\",\n    \"   do not know the customer's name, open with 'Hi there'.\",\n    \"5. Plain English. Four short paragraphs at most. No bullet lists.\",\n    \"6. Write only the body of the email. No subject line, no quoted history.\",\n    `7. Sign off as ${signOff}.`,\n    \"\",\n    `For this message: ${CATEGORY_GUIDANCE[category] || CATEGORY_GUIDANCE.order_status}`,\n    \"\",\n    \"The store's return policy, word for word:\",\n    policy,\n  ].join(\"\\n\");\n\n  const user = [\n    \"Order data from Shopify:\",\n    describeOrder(order),\n    \"\",\n    \"The customer wrote:\",\n    String(customerMessage || \"\").slice(0, 4000),\n  ].join(\"\\n\");\n\n  return [\n    { role: \"system\", content: system },\n    { role: \"user\", content: user },\n  ];\n}\n\nfunction buildRequestBody({ model, messages }) {\n  return {\n    model: model || \"gpt-4o-mini\",\n    messages,\n    temperature: 0.2,\n    max_tokens: 600,\n  };\n}\n\n/** Pulls the reply text out of OpenAI's answer, or says why it could not. */\nfunction readCompletion(response) {\n  if (!response || typeof response !== \"object\") {\n    return { ok: false, text: \"\", problem: \"no_response\" };\n  }\n  if (response.error) {\n    return {\n      ok: false,\n      text: \"\",\n      problem: `openai_error: ${response.error.message || \"unknown\"}`,\n    };\n  }\n  const choice =\n    Array.isArray(response.choices) && response.choices.length > 0\n      ? response.choices[0]\n      : null;\n  const text = choice && choice.message ? String(choice.message.content || \"\") : \"\";\n  if (text.trim() === \"\") {\n    return { ok: false, text: \"\", problem: \"empty_completion\" };\n  }\n  return { ok: true, text: text.trim(), problem: null };\n}\n\n/*\n * The last gate before anything reaches a customer.\n *\n * A language model will occasionally leave a placeholder in, drop the real\n * tracking number, or invent one that looks convincing. Every one of those is\n * cheap to catch here and expensive to catch in a customer's inbox. A draft\n * that fails is never sent; it goes to the owner with the reason on top.\n */\n\nconst PLACEHOLDER_PATTERNS = [\n  /\\[[^\\]\\n]{2,40}\\]/, // [Customer Name]\n  /\\{\\{[^}\\n]{1,40}\\}\\}/, // {{name}}\n  /\\{[A-Za-z_][A-Za-z0-9_ ]{1,30}\\}/, // {name}\n  /\\bXXXX+\\b/,\n  /\\bTBD\\b/,\n  /\\bYOUR[_ ]NAME\\b/i,\n  /\\bINSERT [A-Z ]{3,}\\b/i,\n  /\\bas an AI\\b/i,\n  /\\bI'?m an AI language model\\b/i,\n];\n\n/** Things shaped like a tracking number: long runs of letters and digits. */\nfunction findTrackingLikeStrings(text) {\n  const found = new Set();\n  const pattern = /\\b(?=[A-Z0-9-]{10,35}\\b)(?=[^\\s]*\\d)[A-Z0-9][A-Z0-9-]{9,34}\\b/g;\n  let match;\n  while ((match = pattern.exec(String(text || \"\").toUpperCase())) !== null) {\n    found.add(match[0].replace(/-/g, \"\"));\n  }\n  return [...found];\n}\n\n/**\n * Checks a drafted reply against the facts it is supposed to be built from.\n *\n * Returns { pass, problems }. An empty problems list is the only pass.\n */\nfunction checkDraft(draft, facts) {\n  const problems = [];\n  const text = String(draft == null ? \"\" : draft).trim();\n\n  if (text.length === 0) {\n    return { pass: false, problems: [\"The draft is empty.\"] };\n  }\n  if (text.length < 40) {\n    problems.push(\"The draft is too short to be a real reply.\");\n  }\n  if (text.length > 2500) {\n    problems.push(\"The draft is far longer than a support reply should be.\");\n  }\n\n  for (const pattern of PLACEHOLDER_PATTERNS) {\n    const match = text.match(pattern);\n    if (match) {\n      problems.push(`The draft still contains a placeholder: ${match[0]}`);\n      break;\n    }\n  }\n\n  const realTracking = (facts && facts.tracking ? facts.tracking : [])\n    .map((entry) => String(entry.number || \"\").toUpperCase().replace(/-/g, \"\"))\n    .filter(Boolean);\n\n  const mentioned = findTrackingLikeStrings(text);\n\n  if (realTracking.length > 0) {\n    const includesReal = realTracking.some((number) =>\n      text.toUpperCase().replace(/-/g, \"\").includes(number),\n    );\n    if (!includesReal) {\n      problems.push(\n        \"The order has a tracking number but the draft does not quote it.\",\n      );\n    }\n  }\n\n  const invented = mentioned.filter((candidate) => {\n    if (realTracking.includes(candidate)) return false;\n    // The order number itself is allowed to appear, and so is anything else\n    // we handed the model on purpose.\n    const allowed = [\n      String((facts && facts.orderNumber) || \"\").toUpperCase().replace(/[#-]/g, \"\"),\n    ].filter(Boolean);\n    return !allowed.some((value) => candidate.includes(value));\n  });\n\n  if (invented.length > 0) {\n    problems.push(\n      `The draft contains a code that is not in the order data: ${invented[0]}. ` +\n        `It may have been invented.`,\n    );\n  }\n\n  if (facts && facts.orderNumber) {\n    const bare = String(facts.orderNumber).replace(/^#/, \"\");\n    if (!text.includes(bare)) {\n      problems.push(\"The draft does not mention the order number.\");\n    }\n  }\n\n  return { pass: problems.length === 0, problems };\n}\n\n/** The note that goes on top of a draft the owner has to look at. */\nfunction ownerNote({ why, problems }) {\n  const lines = [\"--- Kitset: read before sending ---\"];\n  if (why) lines.push(why);\n  if (problems && problems.length > 0) {\n    lines.push(\"Automatic checks that failed:\");\n    for (const problem of problems) lines.push(`  - ${problem}`);\n  }\n  lines.push(\"--- end of note, the drafted reply follows ---\", \"\");\n  return lines.join(\"\\n\");\n}\n\n// ---- n8n wiring. The tested logic is above this line. ----\n// Reads OpenAI's answer and runs the last checks on it.\n//\n// Nothing reaches a customer unless the decision was \"send\" AND every check\n// below passed. A failed check does not throw the draft away; it goes to the\n// owner with the reason on top.\n\nconst context = $('Build the prompt').all();\nconst responses = $input.all();\nconst out = [];\n\nfor (let i = 0; i < responses.length; i++) {\n  const j = (context[i] || context[0]).json;\n  const completion = readCompletion(responses[i].json);\n\n  if (!completion.ok) {\n    out.push({\n      json: {\n        ...j,\n        draft: '',\n        checkPassed: false,\n        checkProblems: [`The reply could not be written (${completion.problem}).`],\n        sendIt: false,\n      },\n    });\n    continue;\n  }\n\n  const check = checkDraft(completion.text, j.order);\n  const sendIt = j.decision.action === 'send' && check.pass === true;\n\n  out.push({\n    json: {\n      ...j,\n      draft: completion.text,\n      checkPassed: check.pass,\n      checkProblems: check.problems,\n      sendIt,\n    },\n  });\n}\n\nreturn out;\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000000010",
+      "name": "Check the reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        -260
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "s1",
+              "leftValue": "={{ $json.sendIt }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000011",
+      "name": "Send it?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1240,
+        -260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $json.messageId }}",
+        "emailType": "text",
+        "message": "={{ $json.draft }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000012",
+      "name": "Send the reply",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1460,
+        -360
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "t1",
+              "leftValue": "={{ $json.read.category }}",
+              "rightValue": "ignored",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000013",
+      "name": "Is it worth telling you?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -80,
+        200
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "a1000000-0000-4000-8000-000000000014",
+      "name": "Ignore it",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        140,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "/*\n * Kitset — Shopify support drafter.\n *\n * Everything down to the adapter at the bottom is copied straight from\n * the project's draftcheck.js and is covered by its tests.\n * Editing it here means the tests no longer describe what runs.\n */\n\n/*\n * The last gate before anything reaches a customer.\n *\n * A language model will occasionally leave a placeholder in, drop the real\n * tracking number, or invent one that looks convincing. Every one of those is\n * cheap to catch here and expensive to catch in a customer's inbox. A draft\n * that fails is never sent; it goes to the owner with the reason on top.\n */\n\nconst PLACEHOLDER_PATTERNS = [\n  /\\[[^\\]\\n]{2,40}\\]/, // [Customer Name]\n  /\\{\\{[^}\\n]{1,40}\\}\\}/, // {{name}}\n  /\\{[A-Za-z_][A-Za-z0-9_ ]{1,30}\\}/, // {name}\n  /\\bXXXX+\\b/,\n  /\\bTBD\\b/,\n  /\\bYOUR[_ ]NAME\\b/i,\n  /\\bINSERT [A-Z ]{3,}\\b/i,\n  /\\bas an AI\\b/i,\n  /\\bI'?m an AI language model\\b/i,\n];\n\n/** Things shaped like a tracking number: long runs of letters and digits. */\nfunction findTrackingLikeStrings(text) {\n  const found = new Set();\n  const pattern = /\\b(?=[A-Z0-9-]{10,35}\\b)(?=[^\\s]*\\d)[A-Z0-9][A-Z0-9-]{9,34}\\b/g;\n  let match;\n  while ((match = pattern.exec(String(text || \"\").toUpperCase())) !== null) {\n    found.add(match[0].replace(/-/g, \"\"));\n  }\n  return [...found];\n}\n\n/**\n * Checks a drafted reply against the facts it is supposed to be built from.\n *\n * Returns { pass, problems }. An empty problems list is the only pass.\n */\nfunction checkDraft(draft, facts) {\n  const problems = [];\n  const text = String(draft == null ? \"\" : draft).trim();\n\n  if (text.length === 0) {\n    return { pass: false, problems: [\"The draft is empty.\"] };\n  }\n  if (text.length < 40) {\n    problems.push(\"The draft is too short to be a real reply.\");\n  }\n  if (text.length > 2500) {\n    problems.push(\"The draft is far longer than a support reply should be.\");\n  }\n\n  for (const pattern of PLACEHOLDER_PATTERNS) {\n    const match = text.match(pattern);\n    if (match) {\n      problems.push(`The draft still contains a placeholder: ${match[0]}`);\n      break;\n    }\n  }\n\n  const realTracking = (facts && facts.tracking ? facts.tracking : [])\n    .map((entry) => String(entry.number || \"\").toUpperCase().replace(/-/g, \"\"))\n    .filter(Boolean);\n\n  const mentioned = findTrackingLikeStrings(text);\n\n  if (realTracking.length > 0) {\n    const includesReal = realTracking.some((number) =>\n      text.toUpperCase().replace(/-/g, \"\").includes(number),\n    );\n    if (!includesReal) {\n      problems.push(\n        \"The order has a tracking number but the draft does not quote it.\",\n      );\n    }\n  }\n\n  const invented = mentioned.filter((candidate) => {\n    if (realTracking.includes(candidate)) return false;\n    // The order number itself is allowed to appear, and so is anything else\n    // we handed the model on purpose.\n    const allowed = [\n      String((facts && facts.orderNumber) || \"\").toUpperCase().replace(/[#-]/g, \"\"),\n    ].filter(Boolean);\n    return !allowed.some((value) => candidate.includes(value));\n  });\n\n  if (invented.length > 0) {\n    problems.push(\n      `The draft contains a code that is not in the order data: ${invented[0]}. ` +\n        `It may have been invented.`,\n    );\n  }\n\n  if (facts && facts.orderNumber) {\n    const bare = String(facts.orderNumber).replace(/^#/, \"\");\n    if (!text.includes(bare)) {\n      problems.push(\"The draft does not mention the order number.\");\n    }\n  }\n\n  return { pass: problems.length === 0, problems };\n}\n\n/** The note that goes on top of a draft the owner has to look at. */\nfunction ownerNote({ why, problems }) {\n  const lines = [\"--- Kitset: read before sending ---\"];\n  if (why) lines.push(why);\n  if (problems && problems.length > 0) {\n    lines.push(\"Automatic checks that failed:\");\n    for (const problem of problems) lines.push(`  - ${problem}`);\n  }\n  lines.push(\"--- end of note, the drafted reply follows ---\", \"\");\n  return lines.join(\"\\n\");\n}\n\n// ---- n8n wiring. The tested logic is above this line. ----\n// Builds the draft that lands in your Gmail drafts.\n//\n// Three different paths arrive here: a message the bot would not touch, a\n// message it could not answer, and a drafted reply that did not clear every\n// check. All three end the same way: something in your drafts with a plain\n// note on top saying why it is there.\n\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json;\n\n  const why =\n    (j.decision && j.decision.why) ||\n    (j.read && j.read.reason === 'mixed_signals'\n      ? 'The customer asked about more than one thing at once.'\n      : null) ||\n    (j.shopify && j.shopify.canSearch === false\n      ? 'There was no order number and no usable email address to look the order up by.'\n      : null) ||\n    'This one needs you to read it.';\n\n  const problems = Array.isArray(j.checkProblems) ? j.checkProblems : [];\n  const note = ownerNote({ why, problems });\n\n  const original = [\n    '',\n    '--- the customer wrote ---',\n    (j.email && j.email.body) || '',\n  ].join('\\n');\n\n  const body = j.draft ? `${note}${j.draft}\\n${original}` : `${note}${original}`;\n\n  const subject = (j.email && j.email.subject) || 'Support message';\n\n  out.push({\n    json: {\n      ...j,\n      noteSubject: subject.toLowerCase().startsWith('re:') ? subject : `Re: ${subject}`,\n      noteBody: body,\n      noteTo: (j.read && j.read.customerEmail) || '',\n    },\n  });\n}\n\nreturn out;\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000000015",
+      "name": "Write a note for you",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "={{ $json.noteSubject }}",
+        "emailType": "text",
+        "message": "={{ $json.noteBody }}",
+        "options": {
+          "sendTo": "={{ $json.noteTo }}",
+          "threadId": "={{ $json.threadId }}"
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000016",
+      "name": "Leave it in your drafts",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1460,
+        100
+      ]
+    }
+  ],
+  "connections": {
+    "Check the inbox": {
+      "main": [
+        [
+          {
+            "node": "Your settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Your settings": {
+      "main": [
+        [
+          {
+            "node": "Read the email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read the email": {
+      "main": [
+        [
+          {
+            "node": "Do we handle it?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Do we handle it?": {
+      "main": [
+        [
+          {
+            "node": "Ask Shopify",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is it worth telling you?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask Shopify": {
+      "main": [
+        [
+          {
+            "node": "Read Shopify's answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Shopify's answer": {
+      "main": [
+        [
+          {
+            "node": "Is there a reply to write?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is there a reply to write?": {
+      "main": [
+        [
+          {
+            "node": "Build the prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Write a note for you",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build the prompt": {
+      "main": [
+        [
+          {
+            "node": "Ask OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Check the reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check the reply": {
+      "main": [
+        [
+          {
+            "node": "Send it?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send it?": {
+      "main": [
+        [
+          {
+            "node": "Send the reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Write a note for you",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is it worth telling you?": {
+      "main": [
+        [
+          {
+            "node": "Write a note for you",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ignore it",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write a note for you": {
+      "main": [
+        [
+          {
+            "node": "Leave it in your drafts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send the reply": {
+      "main": [
+        []
+      ]
+    },
+    "Leave it in your drafts": {
+      "main": [
+        []
+      ]
+    },
+    "Ignore it": {
+      "main": [
+        []
+      ]
+    }
+  }
+}

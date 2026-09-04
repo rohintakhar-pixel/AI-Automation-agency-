@@ -1,0 +1,368 @@
+{
+  "name": "Kitset — Shopify support drafter",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "pinData": {},
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": { "item": [{ "mode": "everyMinute" }] },
+        "simple": false,
+        "filters": {
+          "q": "-in:chats -from:me",
+          "readStatus": "unread",
+          "includeSpamTrash": false
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "Check the inbox",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [-960, 0],
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "s1",
+              "name": "storeDomain",
+              "value": "your-store.myshopify.com",
+              "type": "string"
+            },
+            { "id": "s2", "name": "apiVersion", "value": "2024-10", "type": "string" },
+            { "id": "s3", "name": "storeName", "value": "Your Shop", "type": "string" },
+            {
+              "id": "s4",
+              "name": "signOffName",
+              "value": "Your name at Your Shop",
+              "type": "string"
+            },
+            { "id": "s5", "name": "ownerEmail", "value": "you@yourshop.com", "type": "string" },
+            { "id": "s6", "name": "autoSend", "value": false, "type": "boolean" },
+            { "id": "s7", "name": "model", "value": "gpt-4o-mini", "type": "string" },
+            {
+              "id": "s8",
+              "name": "returnPolicy",
+              "value": "Replace this with your own return policy, word for word. The bot only ever quotes what is written here.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "Your settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-740, 0]
+    },
+    {
+      "parameters": { "mode": "runOnceForAllItems", "language": "javaScript", "jsCode": "" },
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "Read the email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-520, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "h1",
+              "leftValue": "={{ $json.read.handle }}",
+              "rightValue": "",
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            },
+            {
+              "id": "h2",
+              "leftValue": "={{ $json.shopify.canSearch }}",
+              "rightValue": "",
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "Do we handle it?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-300, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.shopify.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.shopify.body) }}",
+        "options": {
+          "response": {
+            "response": { "neverError": true, "responseFormat": "json" }
+          }
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "Ask Shopify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-80, -140],
+      "credentials": {}
+    },
+    {
+      "parameters": { "mode": "runOnceForAllItems", "language": "javaScript", "jsCode": "" },
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "Read Shopify's answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [140, -140]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "r1",
+              "leftValue": "={{ $json.decision.action }}",
+              "rightValue": "escalate",
+              "operator": { "type": "string", "operation": "notEquals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000007",
+      "name": "Is there a reply to write?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [360, -140]
+    },
+    {
+      "parameters": { "mode": "runOnceForAllItems", "language": "javaScript", "jsCode": "" },
+      "id": "a1000000-0000-4000-8000-000000000008",
+      "name": "Build the prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [580, -260]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.openai.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.openai.body) }}",
+        "options": {
+          "response": {
+            "response": { "neverError": true, "responseFormat": "json" }
+          },
+          "timeout": 120000
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000009",
+      "name": "Ask OpenAI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [800, -260],
+      "credentials": {}
+    },
+    {
+      "parameters": { "mode": "runOnceForAllItems", "language": "javaScript", "jsCode": "" },
+      "id": "a1000000-0000-4000-8000-000000000010",
+      "name": "Check the reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1020, -260]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "s1",
+              "leftValue": "={{ $json.sendIt }}",
+              "rightValue": "",
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000011",
+      "name": "Send it?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1240, -260]
+    },
+    {
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $json.messageId }}",
+        "emailType": "text",
+        "message": "={{ $json.draft }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000012",
+      "name": "Send the reply",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1460, -360],
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "t1",
+              "leftValue": "={{ $json.read.category }}",
+              "rightValue": "ignored",
+              "operator": { "type": "string", "operation": "notEquals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000013",
+      "name": "Is it worth telling you?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-80, 200]
+    },
+    {
+      "parameters": {},
+      "id": "a1000000-0000-4000-8000-000000000014",
+      "name": "Ignore it",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [140, 320]
+    },
+    {
+      "parameters": { "mode": "runOnceForAllItems", "language": "javaScript", "jsCode": "" },
+      "id": "a1000000-0000-4000-8000-000000000015",
+      "name": "Write a note for you",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1240, 100]
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "={{ $json.noteSubject }}",
+        "emailType": "text",
+        "message": "={{ $json.noteBody }}",
+        "options": {
+          "sendTo": "={{ $json.noteTo }}",
+          "threadId": "={{ $json.threadId }}"
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000016",
+      "name": "Leave it in your drafts",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1460, 100],
+      "credentials": {}
+    }
+  ],
+  "connections": {
+    "Check the inbox": {
+      "main": [[{ "node": "Your settings", "type": "main", "index": 0 }]]
+    },
+    "Your settings": {
+      "main": [[{ "node": "Read the email", "type": "main", "index": 0 }]]
+    },
+    "Read the email": {
+      "main": [[{ "node": "Do we handle it?", "type": "main", "index": 0 }]]
+    },
+    "Do we handle it?": {
+      "main": [
+        [{ "node": "Ask Shopify", "type": "main", "index": 0 }],
+        [{ "node": "Is it worth telling you?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Ask Shopify": {
+      "main": [[{ "node": "Read Shopify's answer", "type": "main", "index": 0 }]]
+    },
+    "Read Shopify's answer": {
+      "main": [[{ "node": "Is there a reply to write?", "type": "main", "index": 0 }]]
+    },
+    "Is there a reply to write?": {
+      "main": [
+        [{ "node": "Build the prompt", "type": "main", "index": 0 }],
+        [{ "node": "Write a note for you", "type": "main", "index": 0 }]
+      ]
+    },
+    "Build the prompt": {
+      "main": [[{ "node": "Ask OpenAI", "type": "main", "index": 0 }]]
+    },
+    "Ask OpenAI": {
+      "main": [[{ "node": "Check the reply", "type": "main", "index": 0 }]]
+    },
+    "Check the reply": {
+      "main": [[{ "node": "Send it?", "type": "main", "index": 0 }]]
+    },
+    "Send it?": {
+      "main": [
+        [{ "node": "Send the reply", "type": "main", "index": 0 }],
+        [{ "node": "Write a note for you", "type": "main", "index": 0 }]
+      ]
+    },
+    "Is it worth telling you?": {
+      "main": [
+        [{ "node": "Write a note for you", "type": "main", "index": 0 }],
+        [{ "node": "Ignore it", "type": "main", "index": 0 }]
+      ]
+    },
+    "Write a note for you": {
+      "main": [[{ "node": "Leave it in your drafts", "type": "main", "index": 0 }]]
+    },
+    "Send the reply": { "main": [[]] },
+    "Leave it in your drafts": { "main": [[]] },
+    "Ignore it": { "main": [[]] }
+  }
+}

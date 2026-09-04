@@ -1,0 +1,38 @@
+{
+  "name": "Shopify support-email order-status and return-request drafter",
+  "slug": "shopify-support-drafter",
+  "shortDescription": "Reads your Shopify support inbox, looks up the real order, and writes the reply for you to send.",
+  "longDescription": "You run the store and you answer the support email. Most of it is the same three questions: where is my order, can I return this, and can you change my address. This bot watches that inbox, finds the order in Shopify by its number or by the customer's email address, and writes a reply using the real order data and your own return policy.\n\nReplies land in a queue for you to glance at and send. Nothing is sent without you unless you switch auto-send on, and even then only for the plainest case: a shipped order, found by its order number, with a real tracking number on it. Returns and address changes always wait for you.\n\nIt runs in n8n, on your own account. It uses your Shopify store, your inbox, and your OpenAI key. It does not check a licence, does not call home, and does not expire. Once you have the files they are yours.",
+  "category": "Customer support",
+  "whoItIsFor": "Solo Shopify store owners who answer their own support email and do not have a helpdesk.",
+  "requirements": [
+    "Shopify store admin access, so you can create a custom app in the Shopify Dev Dashboard.",
+    "A Shopify Admin API access token with the read_orders and read_customers scopes. You create this yourself.",
+    "A support inbox. The bot ships wired for Gmail, meaning a personal Gmail account or Google Workspace. Microsoft 365 and plain IMAP work too, but you swap the first node and the last two yourself. The manual has the exact steps.",
+    "Email access for that inbox, which you set up yourself: Gmail API OAuth credentials, or a Microsoft Graph app registration if you use Microsoft 365.",
+    "An OpenAI account and an API key. You create this yourself.",
+    "An n8n account: either n8n Cloud, or n8n self-hosted on your own machine or server."
+  ],
+  "buyerMonthlyRunningCost": "Roughly $0 to $25 per month, paid to OpenAI and n8n, not to Kitset. OpenAI usage is typically well under $1 per month at solo-store volume. n8n is free if you self-host it, or $20 per month on n8n Cloud.",
+  "setupTime": "Estimated 2 to 4 hours for a careful non-technical buyer. This is an estimate, not a guarantee.",
+  "price": 59,
+  "currency": "USD",
+  "stripePriceIdEnv": "STRIPE_PRICE_SHOPIFY_SUPPORT_DRAFTER",
+  "version": "1.0.0",
+  "lastUpdated": "2026-09-04",
+  "published": true,
+  "downloads": [
+    {
+      "file": "shopify-support-drafter.workflow.json",
+      "label": "The n8n workflow. This is the bot. Import this file into n8n."
+    },
+    {
+      "file": "example-return-policy.md",
+      "label": "An example return policy. Replace the text with your own before you switch the bot on."
+    },
+    {
+      "file": "READ-ME-FIRST.txt",
+      "label": "What is in this download and what order to do things in."
+    }
+  ]
+}
