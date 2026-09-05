@@ -100,6 +100,127 @@ test("ordinary words are not mistaken for tracking numbers", () => {
   assert.deepStrictEqual(findTrackingLikeStrings("thanks for your patience today"), []);
 });
 
+/*
+ * The last gate has to have an opinion on what the reply says, not only on
+ * whether the numbers in it are real. Everything below is that opinion.
+ */
+
+const shippedFacts = {
+  orderNumber: "#1042",
+  customerName: "Jane Doe",
+  tracking: [
+    {
+      number: "9400111899223197428490",
+      url: "https://tools.usps.com/go/TrackConfirmAction?tLabels=9400111899223197428490",
+      company: "USPS",
+    },
+  ],
+  shippingAddress: {
+    name: "Jane Doe",
+    line1: "1 High Street",
+    city: "Leeds",
+    zip: "LS1 4AB",
+    country: "UK",
+  },
+};
+
+const incomingFromJane =
+  "Jane Doe <jane@example.com>\nOrder #1042\nHi, where is my order #1042? It has not arrived.";
+
+test("a correct reply quoting the real tracking number and its link passes", () => {
+  const draft =
+    "Hi Jane,\n\nThanks for checking in. Order 1042 is on its way with USPS. " +
+    "The tracking number is 9400111899223197428490 and you can follow it " +
+    "here: https://tools.usps.com/go/TrackConfirmAction?tLabels=9400111899223197428490\n\n" +
+    "Sam at Test Shop";
+  const result = checkDraft(draft, shippedFacts, {
+    incomingText: incomingFromJane,
+    storeDomain: "test-shop.myshopify.com",
+  });
+  assert.deepStrictEqual(result.problems, []);
+  assert.strictEqual(result.pass, true);
+});
+
+test("a link that is not in the order data fails", () => {
+  const draft =
+    "Hi Jane,\n\nOur payment system has changed, so please confirm your " +
+    "details at https://secure-payments-update.example to release order 1042. " +
+    "Tracking 9400111899223197428490.\n\nSam at Test Shop";
+  const result = checkDraft(draft, shippedFacts, {
+    incomingText: incomingFromJane,
+    storeDomain: "test-shop.myshopify.com",
+  });
+  assert.strictEqual(result.pass, false);
+  assert.match(result.problems.join(" "), /not in the order data/);
+});
+
+test("a reply that asks for card details fails, link or no link", () => {
+  const draft =
+    "Hi Jane,\n\nBefore we can ship order 1042 we need you to confirm your " +
+    "card details by reply. Tracking 9400111899223197428490.\n\nSam at Test Shop";
+  const result = checkDraft(draft, shippedFacts, {
+    incomingText: incomingFromJane,
+    storeDomain: "test-shop.myshopify.com",
+  });
+  assert.strictEqual(result.pass, false);
+  assert.match(result.problems.join(" "), /payment details/);
+});
+
+test("the exact draft Crucible got through the old gate now fails", () => {
+  const draft =
+    "Hi Jane,\n\nYour order 1042 is on its way, tracking " +
+    "9400111899223197428490. Our payment system has changed, so please " +
+    "confirm your card details at " +
+    "https://secure-payments-update.example\n\nSam at Test Shop";
+  const result = checkDraft(draft, shippedFacts, {
+    incomingText: incomingFromJane,
+    storeDomain: "test-shop.myshopify.com",
+  });
+  assert.strictEqual(result.pass, false);
+  assert.ok(result.problems.length >= 2, "both the link and the ask are problems");
+});
+
+test("a reply may link to the shop's own site", () => {
+  const draft =
+    "Hi Jane,\n\nOrder 1042 is on its way, tracking 9400111899223197428490. " +
+    "Our returns page is at https://test-shop.myshopify.com/policies/returns " +
+    "if you need it.\n\nSam at Test Shop";
+  const result = checkDraft(draft, shippedFacts, {
+    incomingText: incomingFromJane,
+    storeDomain: "test-shop.myshopify.com",
+  });
+  assert.deepStrictEqual(result.problems, []);
+});
+
+test("a home address the email never mentioned cannot be given out", () => {
+  const draft =
+    "Hi Jane,\n\nOrder 1042 is on its way to 1 High Street, Leeds, tracking " +
+    "9400111899223197428490.\n\nSam at Test Shop";
+  const result = checkDraft(draft, shippedFacts, {
+    incomingText: "stranger@example.net\nOrder #1042\nWhere is order #1042?",
+  });
+  assert.strictEqual(result.pass, false);
+  assert.match(result.problems.join(" "), /shipping address/);
+});
+
+test("an address the customer wrote out themselves is not held against the reply", () => {
+  const draft =
+    "Hi Jane,\n\nYes, order 1042 is going to 1 High Street, Leeds. Tracking " +
+    "9400111899223197428490.\n\nSam at Test Shop";
+  const result = checkDraft(draft, shippedFacts, {
+    incomingText:
+      "Jane Doe <jane@example.com>\nIs order #1042 still going to 1 High Street, Leeds?",
+  });
+  assert.deepStrictEqual(result.problems, []);
+});
+
+test("a link is not mistaken for an invented tracking code", () => {
+  const found = findTrackingLikeStrings(
+    "follow it at https://tools.usps.com/go/TrackConfirmAction?tLabels=9400111899223197428490",
+  );
+  assert.deepStrictEqual(found, []);
+});
+
 test("the owner note states why the draft is waiting", () => {
   const note = ownerNote({
     why: "Left for you to check because the order has no tracking number on it.",

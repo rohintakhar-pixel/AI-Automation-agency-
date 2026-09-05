@@ -7,10 +7,14 @@
 
 const context = $('Do we handle it?').all(0);
 const responses = $input.all();
+
+const paired = pairByPosition(context, responses, 'Ask Shopify');
+if (!paired.ok) throw new Error(paired.message);
+
 const out = [];
 
 for (let i = 0; i < responses.length; i++) {
-  const j = (context[i] || context[0]).json;
+  const j = context[i].json;
   const raw = responses[i].json;
 
   // With "Never Error" switched on, an HTTP failure arrives here as data

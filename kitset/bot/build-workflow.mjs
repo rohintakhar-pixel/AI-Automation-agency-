@@ -35,7 +35,7 @@ const CODE_NODES = {
     adapter: "read-email.js",
   },
   "Read Shopify's answer": {
-    modules: ["shopify.js", "decide.js"],
+    modules: ["shopify.js", "decide.js", "pairing.js"],
     adapter: "read-shopify.js",
   },
   "Build the prompt": {
@@ -43,7 +43,7 @@ const CODE_NODES = {
     adapter: "build-prompt.js",
   },
   "Check the reply": {
-    modules: ["prompt.js", "draftcheck.js"],
+    modules: ["prompt.js", "draftcheck.js", "pairing.js"],
     adapter: "check-reply.js",
   },
   "Write a note for you": {

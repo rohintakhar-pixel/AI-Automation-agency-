@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getBot } from "@/lib/catalog";
 import { getStripe } from "@/lib/stripe";
+import { comparePrice } from "@/lib/pricing";
 import { siteUrl } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +43,29 @@ export async function POST(request: Request) {
   }
 
   try {
+    // The page and Stripe hold the price separately, so they are compared
+    // before anyone is sent to pay. A buyer agrees to the figure on the page;
+    // charging them anything else is not a bug to notice afterwards.
+    const price = await getStripe().prices.retrieve(priceId.trim());
+    const verdict = comparePrice({
+      catalogPrice: bot.price,
+      catalogCurrency: bot.currency,
+      stripeUnitAmount: price.unit_amount,
+      stripeCurrency: price.currency,
+    });
+    if (!verdict.ok) {
+      console.error(
+        `[kitset] refusing to sell "${bot.slug}": the advertised price and ` +
+          `the Stripe price disagree — ${verdict.problem}. Fix the price in ` +
+          `Stripe or the figure in catalog/${bot.slug}/bot.json, whichever is ` +
+          `wrong. No checkout was started.`,
+      );
+      return NextResponse.redirect(
+        new URL(`/bots/${bot.slug}?checkout=failed`, siteUrl()),
+        303,
+      );
+    }
+
     const session = await getStripe().checkout.sessions.create({
       mode: "payment",
       line_items: [{ price: priceId.trim(), quantity: 1 }],

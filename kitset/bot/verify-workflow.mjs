@@ -47,9 +47,9 @@ const KNOWN_NODES = {
 /** Which logic files each Code node must carry, unchanged. */
 const EXPECTED_CODE = {
   "Read the email": ["classify.js", "shopify.js"],
-  "Read Shopify's answer": ["shopify.js", "decide.js"],
+  "Read Shopify's answer": ["shopify.js", "decide.js", "pairing.js"],
   "Build the prompt": ["prompt.js"],
-  "Check the reply": ["prompt.js", "draftcheck.js"],
+  "Check the reply": ["prompt.js", "draftcheck.js", "pairing.js"],
   "Write a note for you": ["draftcheck.js"],
 };
 

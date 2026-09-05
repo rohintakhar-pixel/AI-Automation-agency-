@@ -47,6 +47,9 @@ export async function POST(request: Request) {
     if (session.payment_status === "paid") {
       recordOrder({
         recordedAt: new Date().toISOString(),
+        // Stripe retries on any answer that is not a 2xx, and the retry
+        // carries this same id. It is what keeps one sale to one line.
+        eventId: event.id,
         sessionId: session.id,
         slug: session.metadata?.slug ?? "unknown",
         email: session.customer_details?.email ?? null,

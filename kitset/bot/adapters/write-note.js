@@ -33,12 +33,21 @@ for (const item of $input.all()) {
 
   const subject = (j.email && j.email.subject) || 'Support message';
 
+  // Normally the draft is addressed back to whoever wrote in, so the owner can
+  // read it and hit send. When the person who wrote in is not the customer the
+  // order belongs to, it is addressed to the owner instead: this note is for
+  // them, and a draft sitting in Gmail can be sent by a slip of the hand.
+  const notTheCustomer = Boolean(j.decision && j.decision.requesterIsNotTheCustomer);
+  const noteTo = notTheCustomer
+    ? (j.settings && j.settings.ownerEmail) || ''
+    : (j.read && j.read.customerEmail) || '';
+
   out.push({
     json: {
       ...j,
       noteSubject: subject.toLowerCase().startsWith('re:') ? subject : `Re: ${subject}`,
       noteBody: body,
-      noteTo: (j.read && j.read.customerEmail) || '',
+      noteTo,
     },
   });
 }

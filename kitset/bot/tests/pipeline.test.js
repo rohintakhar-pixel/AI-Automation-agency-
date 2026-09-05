@@ -3,7 +3,7 @@ const assert = require("node:assert");
 
 const { readEmail } = require("../src/classify.js");
 const { buildOrderSearch, parseOrderResponse, chooseOrder } = require("../src/shopify.js");
-const { decide } = require("../src/decide.js");
+const { decide, mayAutoSend } = require("../src/decide.js");
 const { buildMessages } = require("../src/prompt.js");
 const { checkDraft } = require("../src/draftcheck.js");
 
@@ -264,6 +264,97 @@ test("a model that invents a tracking number is stopped before sending", () => {
     "ZZ111222333GB with Royal Mail.\n\nSam at Test Shop";
   const check = checkDraft(badDraft, result.chosen.order);
   assert.strictEqual(check.pass, false);
+});
+
+/*
+ * The case that got this build rejected. An order number is not a secret and
+ * not a password, so it is not on its own permission to be told anything.
+ */
+test("a stranger naming a real order number gets no send and no draft", () => {
+  const result = run(
+    {
+      from: "stranger@example.net",
+      subject: "Order #1042",
+      body: "Where is my order #1042? It has not arrived.",
+    },
+    shopifyAnswer([shippedOrderNode]),
+  );
+
+  assert.strictEqual(result.read.category, "order_status");
+  assert.strictEqual(result.chosen.order.orderNumber, "#1042");
+  // Not send, and not draft either: escalate is the only outcome.
+  assert.strictEqual(result.decision.action, "escalate");
+  assert.strictEqual(result.decision.requesterIsNotTheCustomer, true);
+  assert.match(result.decision.why, /NOT the customer this order belongs to/);
+  // The note must not repeat the real customer's address back.
+  assert.ok(!result.decision.why.includes("jane@example.com"));
+});
+
+test("auto-send refuses that case on its own, even asked directly", () => {
+  const result = run(
+    {
+      from: "stranger@example.net",
+      subject: "Order #1042",
+      body: "Where is my order #1042? It has not arrived.",
+    },
+    shopifyAnswer([shippedOrderNode]),
+  );
+  const verdict = mayAutoSend({
+    settings: SETTINGS,
+    read: result.read,
+    chosen: result.chosen,
+    parsed: result.parsed,
+  });
+  assert.strictEqual(verdict.allowed, false);
+  assert.match(verdict.reasons.join(" "), /not confirmed as the customer/);
+});
+
+test("nothing about that order reaches the model", () => {
+  const result = run(
+    {
+      from: "stranger@example.net",
+      subject: "Order #1042",
+      body: "Where is my order #1042? It has not arrived.",
+    },
+    shopifyAnswer([shippedOrderNode]),
+  );
+  // Whatever else happened, the prompt built from this decision carries
+  // neither the customer's name nor their home address.
+  const [, user] = buildMessages({
+    category: result.read.category,
+    order: result.chosen.order,
+    customerMessage: result.read.cleanBody,
+    settings: SETTINGS,
+    requesterConfirmed: result.decision.requesterConfirmed === true,
+  });
+  assert.ok(!user.content.includes("Jane Doe"));
+  assert.ok(!user.content.includes("1 High Street"));
+});
+
+test("the real customer, same email, is still answered", () => {
+  const result = run(
+    {
+      from: "Jane Doe <JANE@Example.com>",
+      subject: "Order #1042",
+      body: "Hi, where is my order #1042? The tracking has not updated.",
+    },
+    shopifyAnswer([shippedOrderNode]),
+  );
+  assert.strictEqual(result.decision.action, "send");
+  assert.strictEqual(result.decision.requesterConfirmed, true);
+});
+
+test("an order with no email address on it is escalated, not answered", () => {
+  const result = run(
+    {
+      from: "Jane Doe <jane@example.com>",
+      subject: "Order #1042",
+      body: "Where is my order #1042?",
+    },
+    shopifyAnswer([{ ...shippedOrderNode, email: null, customer: null }]),
+  );
+  assert.strictEqual(result.decision.action, "escalate");
+  assert.match(result.decision.why, /nothing to compare/);
 });
 
 test("a crafted email address cannot change the Shopify search", () => {

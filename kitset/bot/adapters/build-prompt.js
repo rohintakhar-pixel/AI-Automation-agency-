@@ -10,6 +10,10 @@ for (const item of $input.all()) {
     order: j.order,
     customerMessage: j.read.cleanBody,
     settings: j.settings,
+    // Only true when the address the email came from is the address on the
+    // order. It decides whether the customer's name and home address are put
+    // in front of the model at all.
+    requesterConfirmed: j.decision?.requesterConfirmed === true,
   });
 
   out.push({

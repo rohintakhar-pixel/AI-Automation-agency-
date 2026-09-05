@@ -31,11 +31,37 @@ accounts, not ours.
 6. Your own return policy, written out in plain words. The bot only ever
    repeats what you write here, so have it ready.
 
-**One thing to know now, before you spend time on this.** The bot ships with
-sending switched off. Everything it writes lands in your Gmail drafts for you
-to read and send. That is on purpose. When you have watched it for a week and
-you trust it, the end of step 13 turns on automatic sending for the one case
+**Your Shopify plan decides how much of this works.** The bot finds an order in
+two ways: by the order number in the email, or by the customer's email address
+when there is no order number. Looking an order up by customer email address
+needs a Shopify plan of **Grow or higher**. On a **Basic** plan that lookup does
+not work at all, and the bot can only use the order-number path; emails that do
+not quote an order number will come to you as a draft with a note saying no
+order could be found.
+
+The reason is Shopify's own rule, not ours. A customer's email address counts as
+protected customer data at what Shopify calls Level 2, and Shopify's help pages
+say: "To access Custom Level 2 PII apps, your store must be on the Grow plan or
+higher." On Basic: "you won't have access to Custom Level 2 Personally
+Identifiable Information (PII) apps."
+
+- Sources:
+  [shopify.dev/docs/apps/launch/protected-customer-data](https://shopify.dev/docs/apps/launch/protected-customer-data)
+  and
+  [help.shopify.com/en/manual/apps/app-types/custom-apps](https://help.shopify.com/en/manual/apps/app-types/custom-apps)
+- Check your plan before you start: Shopify admin → **Settings → Plan**.
+
+**A second thing to know now, before you spend time on this.** The bot ships
+with sending switched off. Everything it writes lands in your Gmail drafts for
+you to read and send. That is on purpose. When you have watched it for a week
+and you trust it, the end of step 13 turns on automatic sending for the one case
 where it is safe.
+
+**And a third.** The bot only answers the person the order belongs to. It
+compares the address an email came from with the address on the order, and if
+they are not the same it writes nothing and puts a note in your drafts instead.
+An order number is not a password, and anyone who has seen a packing slip or a
+forwarded confirmation has one.
 
 ---
 
@@ -91,6 +117,9 @@ This is the step most online tutorials get wrong. Read the warning first.
    else. The bot only reads; it never changes anything in your store, and
    giving it write access would be handing it the ability to do damage it has
    no reason to do.
+   If you also want the bot to answer about orders older than 60 days, you have
+   to request **read_all_orders** as well, on this same screen. Read the note at
+   the end of this step before you decide.
 5. Save, then install the app on your store when it offers to.
 6. Reveal the **Admin API access token** and copy it. It starts with `shpat_`.
 
@@ -100,10 +129,25 @@ once. If you lose it you have to make a new one.
 **You should see** a long string beginning `shpat_`, and your app listed as
 installed on your store.
 
-> `read_orders` covers the last 60 days of orders by default. If your customers
-> ask about orders older than that, Shopify requires you to request access to
-> historical order data separately, in the same scopes screen. Most solo stores
-> never need it.
+> **The 60-day limit, and how to lift it.** `read_orders` on its own reaches
+> only orders created in the last 60 days. Shopify's own documentation puts it
+> plainly: "To access all the orders, you need to request access to the
+> `read_all_orders` scope."
+> ([shopify.dev/docs/api/usage/access-scopes](https://shopify.dev/docs/api/usage/access-scopes))
+>
+> So if a customer writes in about an order placed more than 60 days ago, the
+> bot will be told the order does not exist, and you will get a draft saying no
+> order could be found. That is Shopify answering, not the bot failing.
+>
+> `read_all_orders` is something you have to ask for and have granted. Do not
+> plan on getting it automatically. Older guidance describes an automatic grant,
+> but that guidance is about the admin-created custom apps that Shopify no
+> longer lets you create, and it is not confirmed for the Dev Dashboard route
+> this manual uses. Request or enable it on the scopes screen, and check it is
+> actually granted before you rely on it.
+>
+> Most solo stores never need it. Decide before you finish this step, because
+> adding a scope later means reinstalling the app and making a new token.
 
 ---
 
@@ -144,8 +188,9 @@ graphs on it (all at zero, which is correct).
 2. Choose **External** and fill in the app name, your email as the user support
    email, and your email again as the developer contact. Leave everything else
    alone.
-3. On the **Test users** step, add your own email address. This matters: the
-   app stays in Testing status, and only the test users you list can sign in.
+3. On the **Test users** step, add your own email address. This matters: while
+   the app is in Testing status, only the test users you list can sign in. You
+   will move it out of Testing at the end of this step, and you have to.
 4. Now open **APIs & Services → Credentials**.
 5. Click **Create credentials → OAuth client ID**.
 6. Application type: **Web application**.
@@ -161,17 +206,27 @@ graphs on it (all at zero, which is correct).
 **You should see** a panel showing a Client ID ending in
 `.apps.googleusercontent.com` and a client secret.
 
-> **Something to check for yourself, and I want to be straight that it is
-> unconfirmed.** There are reports that while a Google Cloud app is in
-> **Testing** status, the sign-in it grants can stop working after about seven
-> days, which would mean reconnecting the Gmail credential in n8n. I have not
-> confirmed this and it may not apply to your account.
+> **Do this now, or the bot stops working in seven days.** While a Google Cloud
+> app's publishing status is **Testing**, the sign-in it grants expires after
+> seven days. This is not a maybe and it is not account-specific. Google's own
+> documentation states it: "A Google Cloud Platform project with an OAuth
+> consent screen configured for an external user type and a publishing status of
+> Testing is issued a refresh token expiring in 7 days, unless the only OAuth
+> scopes requested are a subset of name, email address, and user profile."
+> ([developers.google.com/identity/protocols/oauth2](https://developers.google.com/identity/protocols/oauth2))
 >
-> Verify it yourself rather than taking anyone's word for it: write down
-> today's date, and in eight days' time open your n8n workflow's executions
-> list. If it has kept running, this does not affect you. If it stopped with a
-> sign-in error, reconnect the credential (step 8) and consider publishing the
-> app out of Testing status, which is a button on the OAuth consent screen.
+> The Gmail scopes this bot uses are not in that exempt subset, so it applies to
+> you. Seven days after you connect the credential, the bot will stop and every
+> run will fail with a sign-in error.
+>
+> **What to do:** open **APIs & Services → OAuth consent screen** and change the
+> publishing status from **Testing** to **In production**. It is one button,
+> marked "Publish app". Because the app only ever signs in as you and requests
+> no data from anyone else, there is nothing to submit and nothing to wait for.
+> Do it before you go any further.
+>
+> If you have already been running for a week and it has stopped, publish the
+> app and then reconnect the Gmail credential in step 8.
 
 ---
 
@@ -424,9 +479,24 @@ notifications should already be filtered out. If something gets through, it
 arrives as a draft with a note on top, never as a sent reply, so the cost is a
 draft you delete.
 
-**The Gmail credential worked and then stopped after about a week.** See the
-note in step 6. Reconnect the credential. If it happens again, publish the
-Google Cloud app out of Testing status on the OAuth consent screen.
+**The Gmail credential worked and then stopped after about a week.** Your Google
+Cloud app is still in Testing status. Google expires the sign-in after seven
+days while it is. Publish the app out of Testing on the OAuth consent screen,
+then reconnect the credential in step 8. See the note in step 6.
+
+**A draft says no order could be found, and the customer gave no order number.**
+Looking an order up by the customer's email address needs a Shopify plan of Grow
+or higher. On Basic, that lookup cannot work. See "Before you start".
+
+**A draft says no order could be found, and the order is an old one.** Orders
+older than 60 days need the `read_all_orders` scope on your Shopify token. See
+the note at the end of step 3.
+
+**A draft says the person who wrote in is not the customer.** The bot compares
+the address the email came from with the address on the order, and they did not
+match. It writes nothing in that case. Common innocent causes: the customer
+wrote from a second address, or someone is asking on their behalf. Answer it
+yourself, once you are satisfied who you are talking to.
 
 **A draft has the right facts but the tone is wrong.** Change `signOffName` and
 `returnPolicy` in the **Your settings** node. Those two fields do most of the

@@ -1,13 +1,19 @@
 const test = require("node:test");
 const assert = require("node:assert");
-const { decide, mayAutoSend } = require("../src/decide.js");
+const { decide, mayAutoSend, ownsOrder } = require("../src/decide.js");
 
+/*
+ * The order and the read below belong together: the email came from the
+ * address on the order. Every test that expects a reply to be written needs
+ * that, because an order number on its own is no longer permission to answer.
+ */
 const shippedOrder = {
   orderNumber: "#1042",
   placedAt: "2026-08-30T10:00:00Z",
   financialStatus: "PAID",
   fulfillmentStatus: "FULFILLED",
   cancelled: false,
+  email: "jane@example.com",
   tracking: [{ number: "AB123456789GB", url: null, company: "Royal Mail" }],
 };
 
@@ -16,6 +22,7 @@ const clearStatusRead = {
   category: "order_status",
   reason: "clear",
   orderNumber: "#1042",
+  customerEmail: "jane@example.com",
 };
 
 const base = {
@@ -161,4 +168,87 @@ test("every blocking reason is reported, not just the first", () => {
   });
   assert.strictEqual(verdict.allowed, false);
   assert.ok(verdict.reasons.length >= 5);
+});
+
+/*
+ * Who is allowed to be told about an order.
+ *
+ * The rule is one line: the address the email came from has to be the address
+ * on the order. Everything below is that line, tested from both sides.
+ */
+
+test("the sender and the order match: confirmed", () => {
+  assert.deepStrictEqual(
+    ownsOrder({ read: clearStatusRead, order: shippedOrder }),
+    { confirmed: true, reason: null },
+  );
+});
+
+test("case and spacing do not change who owns an order", () => {
+  const result = ownsOrder({
+    read: { ...clearStatusRead, customerEmail: "  JANE@Example.com " },
+    order: shippedOrder,
+  });
+  assert.strictEqual(result.confirmed, true);
+});
+
+test("a different sender is not the customer", () => {
+  const result = ownsOrder({
+    read: { ...clearStatusRead, customerEmail: "stranger@example.net" },
+    order: shippedOrder,
+  });
+  assert.deepStrictEqual(result, { confirmed: false, reason: "different_address" });
+});
+
+test("an order with no email on it can never be confirmed", () => {
+  const result = ownsOrder({
+    read: clearStatusRead,
+    order: { ...shippedOrder, email: null },
+  });
+  assert.deepStrictEqual(result, { confirmed: false, reason: "no_address_on_order" });
+});
+
+test("an unreadable sender address can never be confirmed", () => {
+  const result = ownsOrder({
+    read: { ...clearStatusRead, customerEmail: null },
+    order: shippedOrder,
+  });
+  assert.deepStrictEqual(result, { confirmed: false, reason: "no_sender_address" });
+});
+
+test("a stranger quoting the order number escalates, and no reply is written", () => {
+  const result = decide({
+    ...base,
+    read: { ...clearStatusRead, customerEmail: "stranger@example.net" },
+  });
+  assert.strictEqual(result.action, "escalate");
+  assert.strictEqual(result.requesterIsNotTheCustomer, true);
+  assert.strictEqual(result.requesterConfirmed, false);
+  assert.match(result.why, /NOT the customer this order belongs to/);
+  assert.match(result.why, /check who is asking/);
+});
+
+test("the escalation note never repeats the real customer's address back", () => {
+  const result = decide({
+    ...base,
+    read: { ...clearStatusRead, customerEmail: "stranger@example.net" },
+  });
+  assert.ok(!result.why.includes("jane@example.com"));
+});
+
+test("a confirmed sender is marked confirmed, so the prompt may use their details", () => {
+  assert.strictEqual(decide(base).requesterConfirmed, true);
+  assert.strictEqual(
+    decide({ ...base, settings: { autoSend: false } }).requesterConfirmed,
+    true,
+  );
+});
+
+test("auto-send checks ownership itself, not only through decide", () => {
+  const verdict = mayAutoSend({
+    ...base,
+    read: { ...clearStatusRead, customerEmail: "stranger@example.net" },
+  });
+  assert.strictEqual(verdict.allowed, false);
+  assert.match(verdict.reasons.join(" "), /not confirmed as the customer/);
 });

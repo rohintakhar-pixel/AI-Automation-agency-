@@ -40,6 +40,24 @@ WHAT ORDER TO DO THINGS IN
 4. Test it by hand on one real order before you switch it on.
 
 
+TWO THINGS THAT DEPEND ON YOUR ACCOUNTS
+---------------------------------------
+
+Check both of these before you start, because neither is something the bot can
+work around.
+
+Your Shopify plan. The bot finds an order either by the order number in the
+email, or by the customer's email address when no number was given. The email
+lookup needs a Shopify plan of Grow or higher. Shopify counts a customer's email
+address as protected customer data, and a Basic-plan store cannot use a custom
+app that reads it. On Basic, only the order-number path works, and emails with
+no order number in them come to you as a draft saying no order was found.
+
+Your Google Cloud app. If your inbox is Gmail, you must publish the Google Cloud
+app out of Testing status. While it is in Testing, Google expires the sign-in
+after seven days and the bot stops. Step 6 of the manual shows you the button.
+
+
 THE ONE THING TO KNOW BEFORE YOU START
 --------------------------------------
 
@@ -75,6 +93,11 @@ WHAT IT DOES NOT DO
 
 - It reads your Shopify orders. It cannot change, refund, or cancel them, and
   it does not have permission to try.
+- It only answers the person an order belongs to. It compares the address an
+  email came from with the address on the order, and if they do not match it
+  writes nothing and leaves you a note. An order number is not a password.
+- It only reaches orders from the last 60 days, unless you have asked Shopify
+  for the read_all_orders scope on your access token.
 - It answers three kinds of question: where is my order, basic return requests,
   and address changes. Anything else it leaves for you to read.
 - It cannot create a return label or start a return in Shopify.

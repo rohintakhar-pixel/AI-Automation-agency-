@@ -77,11 +77,18 @@ export default async function DownloadPage({
         Start at step 1 and work down. Setup takes {bot.setupTime.toLowerCase()}
       </p>
 
-      <h2 className="mt-8 text-xl font-semibold">Keep this link</h2>
+      <h2 className="mt-8 text-xl font-semibold">Download the files now</h2>
       <p className="mt-3 text-ink">
-        Bookmark this page. The address carries your payment reference, so it
-        will bring your files back whenever you need them. Your Stripe receipt
-        has the same reference on it.
+        Save all of them to your own computer before you close this page. They
+        are yours, and a copy on your machine is the one that cannot go away.
+      </p>
+      <p className="mt-3 text-muted">
+        You can bookmark this page and come back to it. The address carries your
+        payment reference, and the page asks Stripe about that reference every
+        time it loads, so it works for as long as this shop&rsquo;s Stripe
+        account can still look that payment up. Your Stripe receipt carries the
+        same reference. That is a while, not a guarantee, which is why the files
+        are worth saving now.
       </p>
     </div>
   );

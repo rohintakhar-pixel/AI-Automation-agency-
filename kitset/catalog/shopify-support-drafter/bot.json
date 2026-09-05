@@ -2,14 +2,15 @@
   "name": "Shopify support-email order-status and return-request drafter",
   "slug": "shopify-support-drafter",
   "shortDescription": "Reads your Shopify support inbox, looks up the real order, and writes the reply for you to send.",
-  "longDescription": "You run the store and you answer the support email. Most of it is the same three questions: where is my order, can I return this, and can you change my address. This bot watches that inbox, finds the order in Shopify by its number or by the customer's email address, and writes a reply using the real order data and your own return policy.\n\nReplies land in a queue for you to glance at and send. Nothing is sent without you unless you switch auto-send on, and even then only for the plainest case: a shipped order, found by its order number, with a real tracking number on it. Returns and address changes always wait for you.\n\nIt runs in n8n, on your own account. It uses your Shopify store, your inbox, and your OpenAI key. It does not check a licence, does not call home, and does not expire. Once you have the files they are yours.",
+  "longDescription": "You run the store and you answer the support email. Most of it is the same three questions: where is my order, can I return this, and can you change my address. This bot watches that inbox, finds the order in Shopify by its number or by the customer's email address, and writes a reply using the real order data and your own return policy.\n\nIt only ever answers the person the order belongs to. Before anything is written it compares the address the email came from with the address on the order, and if they do not match it writes nothing and leaves you a note instead. An order number is not a password.\n\nReplies land in a queue for you to glance at and send. Nothing is sent without you unless you switch auto-send on, and even then only for the plainest case: a shipped order, found by its order number, with a real tracking number on it. Returns and address changes always wait for you.\n\nIt runs in n8n, on your own account. It uses your Shopify store, your inbox, and your OpenAI key. It does not check a licence, does not call home, and does not expire. Once you have the files they are yours.",
   "category": "Customer support",
   "whoItIsFor": "Solo Shopify store owners who answer their own support email and do not have a helpdesk.",
   "requirements": [
+    "A Shopify plan of Grow or higher if you want the bot to find orders by the customer's email address. Shopify treats a customer email address as protected customer data, and its help pages say a store must be on the Grow plan or higher to use a custom app that reads it. On a Basic plan that lookup does not work at all, and the bot can only find orders when the customer quotes an order number. Check your plan before you buy: Shopify admin, Settings, Plan.",
     "Shopify store admin access, so you can create a custom app in the Shopify Dev Dashboard.",
-    "A Shopify Admin API access token with the read_orders and read_customers scopes. You create this yourself.",
+    "A Shopify Admin API access token with the read_orders and read_customers scopes. You create this yourself. read_orders reaches only the last 60 days of orders; answering about anything older means also requesting the read_all_orders scope, which you have to ask Shopify for rather than getting automatically.",
     "A support inbox. The bot ships wired for Gmail, meaning a personal Gmail account or Google Workspace. Microsoft 365 and plain IMAP work too, but you swap the first node and the last two yourself. The manual has the exact steps.",
-    "Email access for that inbox, which you set up yourself: Gmail API OAuth credentials, or a Microsoft Graph app registration if you use Microsoft 365.",
+    "Email access for that inbox, which you set up yourself: Gmail API OAuth credentials, or a Microsoft Graph app registration if you use Microsoft 365. With Gmail you must also publish your Google Cloud app out of Testing status, because Google expires the sign-in after seven days while an app is in Testing. It is one button and the manual shows you where.",
     "An OpenAI account and an API key. You create this yourself.",
     "An n8n account: either n8n Cloud, or n8n self-hosted on your own machine or server."
   ],
@@ -18,8 +19,8 @@
   "price": 59,
   "currency": "USD",
   "stripePriceIdEnv": "STRIPE_PRICE_SHOPIFY_SUPPORT_DRAFTER",
-  "version": "1.0.0",
-  "lastUpdated": "2026-09-04",
+  "version": "1.0.1",
+  "lastUpdated": "2026-09-05",
   "published": true,
   "downloads": [
     {

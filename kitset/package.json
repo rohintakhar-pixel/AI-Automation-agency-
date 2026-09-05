@@ -10,7 +10,8 @@
     "bot:build": "node bot/build-workflow.mjs",
     "bot:test": "node --test bot/tests/*.test.js",
     "bot:verify": "node bot/verify-workflow.mjs",
-    "check": "node bot/build-workflow.mjs && node --test bot/tests/*.test.js && node bot/verify-workflow.mjs && next build"
+    "check": "node bot/build-workflow.mjs && node --test bot/tests/*.test.js && node --test tests/*.test.js && node bot/verify-workflow.mjs && next build",
+    "web:test": "node --test tests/*.test.js"
   },
   "dependencies": {
     "marked": "18.0.11",
