@@ -63,6 +63,13 @@ they are not the same it writes nothing and puts a note in your drafts instead.
 An order number is not a password, and anyone who has seen a packing slip or a
 forwarded confirmation has one.
 
+The address it compares is the real sending mailbox, not the name on the email.
+Anyone can type anything into the "your name" box of their mail program,
+including somebody else's email address, and some mail programs then show that
+name where you would expect the address. If the name on an email disagrees with
+the mailbox it was actually sent from, the bot treats the sender as unknown,
+writes nothing, and puts it in front of you.
+
 ---
 
 ## Step 1. Get an n8n account
@@ -498,6 +505,13 @@ match. It writes nothing in that case. Common innocent causes: the customer
 wrote from a second address, or someone is asking on their behalf. Answer it
 yourself, once you are satisfied who you are talking to.
 
+**A draft says the sender's address could not be read.** The email's From line
+named more than one address — usually because the name on it contains an
+address of its own. That is sometimes a mail program being odd and sometimes
+somebody trying to pass themselves off as one of your customers. Either way the
+bot will not guess between two addresses. Look at who really sent it and answer
+it yourself.
+
 **A draft has the right facts but the tone is wrong.** Change `signOffName` and
 `returnPolicy` in the **Your settings** node. Those two fields do most of the
 work in how a reply reads.
@@ -506,6 +520,14 @@ work in how a reply reads.
 job. The note says which check. Common ones: the reply did not quote the real
 tracking number, or it contained a code that was not in the order data. Read
 the draft, fix it, send it. Nothing that fails a check is ever sent on its own.
+
+Two of those checks are about where a reply sends people. One fails if the
+reply contains a web address that is not the tracking link on the order or your
+own shop. The other fails if it tells the customer to write to an email address
+you do not control. Both are counted whether or not the address was written out
+in full — `pay-here.example/verify` is a link as much as `https://` in front of
+it is. That matters because the wording of a reply is partly steered by the
+customer's own message, and a message can ask for exactly that.
 
 **You want to see what it did and when.** In n8n, open the workflow and click
 **Executions**. Every run is listed, and you can click into any one and see

@@ -23,13 +23,78 @@ const PLACEHOLDER_PATTERNS = [
 /*
  * Web addresses, in the forms a model actually writes them.
  *
+ * Two shapes, and both matter. One carries "http://", "https://" or "www." and
+ * is unmistakable. The other is a bare host — secure-payments-update.example
+ * /verify — which is how a model writes a link at least as often, and which
+ * every mail client turns into something the customer can click. Only the
+ * first shape used to be recognised, so a bare one was never treated as a link
+ * at all: it never reached the allow-list below, and the reply went out clean.
+ *
  * Used twice, for two different jobs: to take links out of the text before
- * looking for invented tracking codes, and to check the links themselves.
+ * looking for invented tracking codes, and to check the links themselves. Both
+ * jobs read this one pattern on purpose, so the two cannot drift apart.
+ *
+ * A bare host has to start at a boundary. That is not fussiness: without it the
+ * scanner starts again at every character inside a long hyphenated run, which
+ * is slow enough on a deliberately awkward draft to be worth avoiding.
  */
-const URL_PATTERN = /(?:https?:\/\/|www\.)[^\s<>()[\]{}"'`]+/gi;
+const URL_PATTERN =
+  /(?:https?:\/\/|www\.)[^\s<>()[\]{}"'`]+|(?<![a-z0-9.@-])(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}\b(?:\/[^\s<>()[\]{}"'`]*)?/gi;
+
+/*
+ * Email addresses. Blanked out before the link scan, so that a contact address
+ * is not reported as a link to the domain after its "@", and checked on their
+ * own terms further down.
+ *
+ * It has to start at a boundary and both halves are length-capped. An unbounded
+ * run that can start anywhere re-reads the rest of the draft from every
+ * character in it, which on a long reply is slow enough to notice.
+ */
+const EMAIL_PATTERN =
+  /(?<![^\s<>@,;:"'()[\]])[^\s<>@,;:"'()[\]]{1,64}@[^\s<>@,;:"'()[\]]{1,255}\.[a-z]{2,24}/gi;
+
+/*
+ * Endings that are file extensions in ordinary support English rather than
+ * top-level domains. Only ever applied to a bare match: "receipt.pdf" is a
+ * file, but "evil.example/receipt.pdf" is still a link, because its host is
+ * evil.example.
+ *
+ * Endings that are also real top-level domains stay off the list, however
+ * file-like they look: ".zip" and ".mov" can be bought and are used for exactly
+ * this.
+ *
+ * The list is short on purpose. Recognising a bare host is deliberately
+ * generous, because the two mistakes do not cost the same. Treating a stray
+ * word as a link costs the owner ten seconds reading a draft. Missing a real
+ * one costs a customer who clicked what their shop sent them.
+ */
+const NOT_A_DOMAIN_ENDING = new Set([
+  "md", "txt", "pdf", "png", "jpg", "jpeg", "gif", "svg", "webp", "csv", "tsv",
+  "json", "xml", "yml", "yaml", "xls", "xlsx", "doc", "docx", "ppt", "pptx",
+  "html", "htm", "css", "js", "mjs", "cjs", "ts", "log", "gz", "tar",
+]);
+
+/** Blanks out email addresses, keeping the length so nothing else shifts. */
+function withoutEmailAddresses(text) {
+  return String(text == null ? "" : text).replace(EMAIL_PATTERN, (match) =>
+    " ".repeat(match.length),
+  );
+}
 
 function findUrls(text) {
-  return String(text || "").match(URL_PATTERN) || [];
+  const scanned = withoutEmailAddresses(text);
+  const found = scanned.match(URL_PATTERN) || [];
+  return found.filter((raw) => {
+    if (/^(?:https?:\/\/|www\.)/i.test(raw)) return true;
+    const host = urlHost(raw);
+    return !NOT_A_DOMAIN_ENDING.has(host.slice(host.lastIndexOf(".") + 1));
+  });
+}
+
+/** Every contact address a draft hands over, lower-cased and de-duplicated. */
+function findContactAddresses(text) {
+  const found = String(text == null ? "" : text).match(EMAIL_PATTERN) || [];
+  return [...new Set(found.map((address) => address.trim().toLowerCase()))];
 }
 
 /** Drops the punctuation a sentence leaves stuck to the end of a link. */
@@ -124,7 +189,12 @@ function findTrackingLikeStrings(text) {
   // reply of inventing a code, purely for quoting the tracking link it was
   // told to quote.
   const withoutLinks = String(text || "").replace(URL_PATTERN, " ");
-  const pattern = /\b(?=[A-Z0-9-]{10,35}\b)(?=[^\s]*\d)[A-Z0-9][A-Z0-9-]{9,34}\b/g;
+  // "Has a digit in it" is asked of the candidate itself, and only as far as the
+  // candidate can reach — a match is 35 characters at most, so a digit beyond
+  // that was never part of it anyway. Same answer on any real draft, and it
+  // stops the scan re-reading the rest of a long unbroken string from every
+  // character in it.
+  const pattern = /\b(?=[A-Z0-9-]{10,35}\b)(?=[A-Z0-9-]{0,34}\d)[A-Z0-9][A-Z0-9-]{9,34}\b/g;
   let match;
   while ((match = pattern.exec(withoutLinks.toUpperCase())) !== null) {
     found.add(match[0].replace(/-/g, ""));
@@ -147,6 +217,7 @@ function checkDraft(draft, facts, context) {
   const problems = [];
   const text = String(draft == null ? "" : draft).trim();
   const incoming = String((context && context.incomingText) || "");
+  const flatIncomingText = incoming.toLowerCase();
   const storeDomain = urlHost(String((context && context.storeDomain) || ""));
 
   if (text.length === 0) {
@@ -237,6 +308,26 @@ function checkDraft(draft, facts, context) {
     }
   }
 
+  // A reply can send a customer somewhere else without using a link at all:
+  // "please write to refunds@evil.example". Same lever, so the same rule. The
+  // shop's own addresses are fine, and so is an address the customer put in
+  // the email themselves.
+  for (const address of findContactAddresses(text)) {
+    const host = address.slice(address.lastIndexOf("@") + 1);
+    const known =
+      flatIncomingText.includes(address) ||
+      orderHosts.has(host) ||
+      [...orderHosts].some((allowed) => allowed && host.endsWith(`.${allowed}`));
+    if (!known) {
+      problems.push(
+        `The draft tells the customer to write to ${address}, which is not ` +
+          `an address the shop controls. A reply only ever points back at ` +
+          `the shop.`,
+      );
+      break;
+    }
+  }
+
   // Asking a customer for card or bank details. The shop already has the
   // money, so there is no version of this that is the bot doing its job.
   for (const pattern of PAYMENT_REQUEST_PATTERNS) {
@@ -281,4 +372,10 @@ function ownerNote({ why, problems }) {
 }
 // ==== END SHARED ====
 
-module.exports = { checkDraft, findTrackingLikeStrings, findUrls, ownerNote };
+module.exports = {
+  checkDraft,
+  findTrackingLikeStrings,
+  findUrls,
+  findContactAddresses,
+  ownerNote,
+};

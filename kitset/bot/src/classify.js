@@ -280,13 +280,93 @@ function extractOrderNumber(text) {
   return null;
 }
 
-/** The sender's address, taken from the From header rather than the body. */
+/*
+ * Who actually sent this email?
+ *
+ * A From header has two halves. The mailbox in angle brackets is the one the
+ * sender's mail provider vouches for. The display name in front of it is free
+ * text the sender types into their own mail program, and it can contain an
+ * address of its own:
+ *
+ *   From: "Jane <jane@example.com>" <stranger@evil.net>
+ *
+ * Nothing there is forged. The attacker's mailbox really is theirs, so the
+ * message passes SPF, DKIM and every spam check clean. Reading the first
+ * address out of the whole line hands them Jane's name, Jane's address and
+ * Jane's parcel.
+ *
+ * So the rule is: one candidate address, or nobody. A From line that offers
+ * two is refused, and the message goes to the owner unanswered. Refusing costs
+ * a person ten seconds. Guessing costs a customer.
+ */
+
+/** Every address in a bracketed From line. Global: all of them, not the first. */
+const BRACKETED_ADDRESS = /<([^<>@\s]+@[^<>@\s]+\.[a-z]{2,})>/gi;
+
+/** An address written without brackets, in a display name or on its own. */
+const ANY_ADDRESS = /[^\s<>@,;:"'()[\]]+@[^\s<>@,;:"'()[\]]+\.[a-z]{2,}/gi;
+
+/** Lower-cased, de-duplicated, empties dropped. The same address twice is one. */
+function distinctAddresses(values) {
+  const found = [];
+  for (const value of values) {
+    const address = String(value == null ? "" : value)
+      .trim()
+      .toLowerCase();
+    if (address.includes("@") && !found.includes(address)) found.push(address);
+  }
+  return found;
+}
+
+/**
+ * The sender's address, read from a raw From header line.
+ *
+ * Returns null when the line names nobody, and null when it names more than
+ * one — an ambiguous line is not something to pick a favourite from.
+ */
 function extractSenderEmail(from) {
   const source = String(from || "");
-  const angled = source.match(/<([^<>@\s]+@[^<>@\s]+\.[a-z]{2,})>/i);
-  if (angled) return angled[1].toLowerCase();
-  const bare = source.match(/([^<>@\s]+@[^<>@\s]+\.[a-z]{2,})/i);
-  return bare ? bare[1].toLowerCase() : null;
+  const bracketed = distinctAddresses(
+    [...source.matchAll(BRACKETED_ADDRESS)].map((match) => match[1]),
+  );
+  if (bracketed.length === 1) return bracketed[0];
+  if (bracketed.length > 1) return null;
+  const bare = distinctAddresses(
+    [...source.matchAll(ANY_ADDRESS)].map((match) => match[0]),
+  );
+  return bare.length === 1 ? bare[0] : null;
+}
+
+/**
+ * The sender's address, from whatever the mail node handed over.
+ *
+ * `from` is either the object a mail parser produces — { value: [{ address,
+ * name }], text } — or a raw header line. The parsed address is preferred: it
+ * is the mailbox, already separated from the display name, so a display name
+ * cannot masquerade as it.
+ *
+ * Preferring it is not enough on its own. Parsers do not all split that header
+ * the same way: one spelling of the trick above leaves the planted address in
+ * `name`, another leaves it in `address` and the real sender in `name`. So
+ * whichever side it lands on, the answer is the same — if the display name
+ * names an address that is not the parsed one, nobody is identified.
+ */
+function senderAddress(from) {
+  if (from && typeof from === "object" && !Array.isArray(from)) {
+    const entries = Array.isArray(from.value) ? from.value : [];
+    const addresses = distinctAddresses(entries.map((entry) => entry && entry.address));
+    if (addresses.length > 1) return null; // two senders: refuse rather than pick
+    if (addresses.length === 1) {
+      const planted = distinctAddresses(
+        entries.flatMap(
+          (entry) => String((entry && entry.name) || "").match(ANY_ADDRESS) || [],
+        ),
+      ).filter((address) => address !== addresses[0]);
+      return planted.length > 0 ? null : addresses[0];
+    }
+    return extractSenderEmail(from.text);
+  }
+  return extractSenderEmail(from);
 }
 
 /**
@@ -297,6 +377,11 @@ function extractSenderEmail(from) {
  */
 function readEmail(email) {
   const cleanBody = stripQuotedHistory(email.body);
+  // Read once, at the top. Every exit below reports the same answer, and there
+  // is only one place the sender can be got wrong.
+  const customerEmail = senderAddress(
+    email && email.fromParsed ? email.fromParsed : email && email.from,
+  );
 
   if (isAutomated(email)) {
     return {
@@ -304,7 +389,7 @@ function readEmail(email) {
       category: "ignored",
       reason: "automated_mail",
       orderNumber: null,
-      customerEmail: extractSenderEmail(email.from),
+      customerEmail,
       cleanBody,
     };
   }
@@ -315,7 +400,7 @@ function readEmail(email) {
       category: "unclear",
       reason: "empty_message",
       orderNumber: null,
-      customerEmail: extractSenderEmail(email.from),
+      customerEmail,
       cleanBody,
     };
   }
@@ -329,7 +414,7 @@ function readEmail(email) {
     category: verdict.category,
     reason: verdict.reason,
     orderNumber: extractOrderNumber(searchText),
-    customerEmail: extractSenderEmail(email.from),
+    customerEmail,
     cleanBody,
   };
 }
@@ -341,5 +426,6 @@ module.exports = {
   categorise,
   extractOrderNumber,
   extractSenderEmail,
+  senderAddress,
   readEmail,
 };

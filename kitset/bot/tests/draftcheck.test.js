@@ -230,3 +230,195 @@ test("the owner note states why the draft is waiting", () => {
   assert.match(note, /no tracking number/);
   assert.match(note, /does not mention the order number/);
 });
+
+/*
+ * Bare links.
+ *
+ * A model writes a web address without "https://" more often than with it, and
+ * every mail client turns a bare one into something the customer can click.
+ * The old pattern did not see them as links at all, so they never reached the
+ * allow-list and went out unread.
+ */
+
+const shopContext = {
+  incomingText: incomingFromJane,
+  storeDomain: "test-shop.myshopify.com",
+};
+
+function shippedDraft(line) {
+  return (
+    `Hi Jane,\n\nOrder 1042 is on its way, tracking 9400111899223197428490. ` +
+    `${line}\n\nSam at Test Shop`
+  );
+}
+
+test("a bare-domain link that is not in the order data fails", () => {
+  const result = checkDraft(
+    shippedDraft("Please confirm your details at secure-payments-update.example/verify"),
+    shippedFacts,
+    shopContext,
+  );
+  assert.strictEqual(result.pass, false);
+  assert.match(result.problems.join(" "), /not in the order data/);
+});
+
+test("a bare subdomain link fails", () => {
+  const result = checkDraft(
+    shippedDraft("Claim your refund at evil-refunds.example.com/claim"),
+    shippedFacts,
+    shopContext,
+  );
+  assert.strictEqual(result.pass, false);
+  assert.match(result.problems.join(" "), /not in the order data/);
+});
+
+test("a bare domain with no path at all still fails", () => {
+  const result = checkDraft(
+    shippedDraft("More at secure-payments-update.example"),
+    shippedFacts,
+    shopContext,
+  );
+  assert.strictEqual(result.pass, false);
+});
+
+test("an uppercase scheme and a bare www. both fail", () => {
+  assert.strictEqual(
+    checkDraft(shippedDraft("Go to HTTPS://EVIL.EXAMPLE/x"), shippedFacts, shopContext)
+      .pass,
+    false,
+  );
+  assert.strictEqual(
+    checkDraft(shippedDraft("Go to www.evil.example/x"), shippedFacts, shopContext).pass,
+    false,
+  );
+});
+
+test("a bare link written inside markdown fails", () => {
+  const result = checkDraft(
+    shippedDraft("[click here](secure-payments-update.example/verify)"),
+    shippedFacts,
+    shopContext,
+  );
+  assert.strictEqual(result.pass, false);
+});
+
+test("a look-alike of the shop's own domain fails", () => {
+  assert.strictEqual(
+    checkDraft(shippedDraft("See nottest-shop.myshopify.com/x"), shippedFacts, shopContext)
+      .pass,
+    false,
+  );
+  assert.strictEqual(
+    checkDraft(
+      shippedDraft("See test-shop.myshopify.com.evil.net/x"),
+      shippedFacts,
+      shopContext,
+    ).pass,
+    false,
+  );
+});
+
+test("the shop's own site is still allowed written bare", () => {
+  const result = checkDraft(
+    shippedDraft("Our returns page is at test-shop.myshopify.com/policies/returns"),
+    shippedFacts,
+    shopContext,
+  );
+  assert.deepStrictEqual(result.problems, []);
+});
+
+/*
+ * The other half of the same change: ordinary support English must not start
+ * failing. A false alarm only costs the owner a glance, but a checker that
+ * cries wolf on every reply is a checker nobody reads.
+ */
+test("ordinary support English is not mistaken for a link", () => {
+  const ordinary = [
+    "Thanks for writing in. Best wishes.",
+    "It should arrive in 3.5 days, i.e. by Friday.",
+    "We are open Mon.-Fri., 9 a.m. to 4 p.m.",
+    "Your order no. 1042 was refunded in full on Mon., 4 p.m.",
+    "The instructions are in READ-ME-FIRST.txt and manual.md.",
+    "Your receipt.pdf is attached to this email.",
+    "That is version 1.2 of the workflow, e.g. the current one.",
+  ];
+  for (const line of ordinary) {
+    const result = checkDraft(shippedDraft(line), shippedFacts, shopContext);
+    assert.deepStrictEqual(result.problems, [], `flagged wrongly: ${line}`);
+  }
+});
+
+test("a file name behind a hostile host is still a link", () => {
+  assert.strictEqual(
+    checkDraft(shippedDraft("Open evil.example/receipt.pdf"), shippedFacts, shopContext)
+      .pass,
+    false,
+  );
+});
+
+test("shortener and look-alike spellings are all caught", () => {
+  const hostile = [
+    "bit.ly/xyz",
+    "tinyurl.com/abc",
+    "my-shop.zip/invoice",
+    "secure-payments-update.example/verify",
+    "https://secure-payments-update.example/verify",
+    "www.secure-payments-update.example",
+  ];
+  for (const line of hostile) {
+    const result = checkDraft(shippedDraft(`Go to ${line}`), shippedFacts, shopContext);
+    assert.strictEqual(result.pass, false, `missed: ${line}`);
+  }
+});
+
+test("the real tracking number survives the link strip", () => {
+  // The reason this matters: the strip feeds the invented-code scan, and a
+  // pattern that ate the tracking number would accuse a correct reply.
+  const draft =
+    "Hi Jane,\n\nTracking 9400111899223197428490, follow it at " +
+    "https://tools.usps.com/go/TrackConfirmAction?tLabels=9400111899223197428490 " +
+    "for order 1042.\n\nSam at Test Shop";
+  assert.ok(findTrackingLikeStrings(draft).includes("9400111899223197428490"));
+  const result = checkDraft(draft, shippedFacts, shopContext);
+  assert.deepStrictEqual(result.problems, []);
+});
+
+test("the link pattern does not blow up on hostile input", () => {
+  const nasty = `${"a-".repeat(2000)}.${"b".repeat(2000)}`;
+  const started = Date.now();
+  for (let i = 0; i < 200; i++) checkDraft(shippedDraft(nasty), shippedFacts, shopContext);
+  assert.ok(Date.now() - started < 3000, "the scan took too long on hostile input");
+});
+
+/*
+ * A reply can send a customer somewhere else without using a link at all.
+ * "Write to refunds@evil.example" is the same lever, so it gets the same rule.
+ */
+test("a contact address the shop does not control is reported", () => {
+  const result = checkDraft(
+    shippedDraft("For a refund please write to refunds@evil.example instead."),
+    shippedFacts,
+    shopContext,
+  );
+  assert.strictEqual(result.pass, false);
+  assert.match(result.problems.join(" "), /write to refunds@evil\.example/);
+});
+
+test("the shop's own address and the customer's own are both fine", () => {
+  assert.deepStrictEqual(
+    checkDraft(
+      shippedDraft("Reply to help@test-shop.myshopify.com if anything changes."),
+      shippedFacts,
+      shopContext,
+    ).problems,
+    [],
+  );
+  assert.deepStrictEqual(
+    checkDraft(
+      shippedDraft("We have you down as jane@example.com."),
+      shippedFacts,
+      shopContext,
+    ).problems,
+    [],
+  );
+});

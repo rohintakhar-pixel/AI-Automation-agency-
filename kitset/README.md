@@ -89,7 +89,11 @@ sells.
   querying Shopify, deciding whether to send or draft, and checking the drafted
   reply before it goes anywhere.
 - `bot/tests/` — the tests for all of it, including an end-to-end pass over
-  fixtures.
+  fixtures. `sender-attack.test.js` is the one exception to fixtures: it parses
+  real raw email with `mailparser`, the same parser n8n's Gmail node uses, so
+  that the way a From line is really split is checked rather than assumed. That
+  is the only reason `mailparser` is a development dependency; nothing the
+  buyer downloads uses it.
 - `bot/workflow.template.json` — the n8n workflow with empty Code nodes.
 - `bot/build-workflow.mjs` — pastes the logic files into those Code nodes,
   byte for byte, and writes the file the buyer downloads.

@@ -18,16 +18,26 @@ for (const item of $input.all()) {
   };
 
   // The Gmail trigger with Simplify switched off returns a parsed message:
-  // "text" is the plain-text body, "from" is an object with a "text" field,
-  // and "headers" is a map of header name to the whole header line.
-  const from =
-    (j.from && (j.from.text || j.from.value?.[0]?.address)) ||
+  // "text" is the plain-text body, "from" is an object with a rendered "text"
+  // field and a "value" array of addresses the parser has already separated
+  // out, and "headers" is a map of header name to the whole header line.
+  //
+  // Two different things are wanted out of "from", so both are carried.
+  // The rendered line is what the automated-mail check reads, because
+  // "noreply" often appears only in the display name. The address the customer
+  // is identified by comes from the parsed value instead, because a display
+  // name is free text the sender types and can carry an address of its own.
+  const fromParsed = j.from && typeof j.from === 'object' ? j.from : null;
+  const fromLine =
+    (fromParsed && (fromParsed.text || fromParsed.value?.[0]?.address)) ||
+    (typeof j.from === 'string' ? j.from : '') ||
     j.From ||
     j.headers?.from ||
     '';
 
   const email = {
-    from: String(from),
+    from: String(fromLine),
+    fromParsed,
     subject: String(j.subject || j.Subject || ''),
     body: String(j.text || j.textPlain || j.html || j.snippet || ''),
     headers: j.headers || {},
