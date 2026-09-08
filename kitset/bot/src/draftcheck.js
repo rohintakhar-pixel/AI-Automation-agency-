@@ -49,9 +49,22 @@ const URL_PATTERN =
  * It has to start at a boundary and both halves are length-capped. An unbounded
  * run that can start anywhere re-reads the rest of the draft from every
  * character in it, which on a long reply is slow enough to notice.
+ *
+ * Neither half may contain a slash, and that is the whole of what keeps this
+ * pattern off web addresses. A link is allowed to carry a short word and an "@"
+ * in front of its host:
+ *
+ *   https://x@secure-payments-update.example/verify
+ *
+ * which a browser reads as a sign-in name and throws away, sending the customer
+ * to secure-payments-update.example. Without the slash rule this pattern read
+ * "//x@secure-payments-update.example" as an email address, and because
+ * addresses are blanked out before the link scan, the link scan never saw the
+ * link at all. An email address never has a slash in it and a web address
+ * usually does, so the slash is what tells the two apart.
  */
 const EMAIL_PATTERN =
-  /(?<![^\s<>@,;:"'()[\]])[^\s<>@,;:"'()[\]]{1,64}@[^\s<>@,;:"'()[\]]{1,255}\.[a-z]{2,24}/gi;
+  /(?<![^\s<>@,;:"'()[\]])[^\s<>@,;:"'()[\]/]{1,64}@[^\s<>@,;:"'()[\]/]{1,255}\.[a-z]{2,24}/gi;
 
 /*
  * Endings that are file extensions in ordinary support English rather than
@@ -95,6 +108,37 @@ function findUrls(text) {
 function findContactAddresses(text) {
   const found = String(text == null ? "" : text).match(EMAIL_PATTERN) || [];
   return [...new Set(found.map((address) => address.trim().toLowerCase()))];
+}
+
+/*
+ * The address the incoming email was actually sent from.
+ *
+ * `incomingText` is the From line, then the subject, then the body, joined in
+ * that order, so the sender's own address is on the first line. Nowhere else in
+ * the message counts. A body can quote any address in the world — the ordinary
+ * way that happens is a customer forwarding a phishing email and asking "is
+ * this you?" — and a customer quoting an address has never made it one the shop
+ * may send anybody to.
+ *
+ * The rule is the same one used on the way in: the mailbox in angle brackets is
+ * the one the sender's mail provider vouches for, and a line offering two
+ * candidates names nobody. Nobody means nothing is waived, which is the safe
+ * direction: the draft goes to the owner to read.
+ */
+const BRACKETED_ADDRESS = /<([^\s<>@/]+@[^\s<>@/]+\.[a-z]{2,24})>/gi;
+
+function incomingSenderAddress(incomingText) {
+  const fromLine = String(incomingText == null ? "" : incomingText).split("\n")[0];
+  const bracketed = [
+    ...new Set(
+      [...fromLine.matchAll(BRACKETED_ADDRESS)].map((match) =>
+        match[1].trim().toLowerCase(),
+      ),
+    ),
+  ];
+  if (bracketed.length > 0) return bracketed.length === 1 ? bracketed[0] : null;
+  const bare = findContactAddresses(fromLine);
+  return bare.length === 1 ? bare[0] : null;
 }
 
 /** Drops the punctuation a sentence leaves stuck to the end of a link. */
@@ -217,7 +261,7 @@ function checkDraft(draft, facts, context) {
   const problems = [];
   const text = String(draft == null ? "" : draft).trim();
   const incoming = String((context && context.incomingText) || "");
-  const flatIncomingText = incoming.toLowerCase();
+  const senderAddress = incomingSenderAddress(incoming);
   const storeDomain = urlHost(String((context && context.storeDomain) || ""));
 
   if (text.length === 0) {
@@ -309,13 +353,15 @@ function checkDraft(draft, facts, context) {
   }
 
   // A reply can send a customer somewhere else without using a link at all:
-  // "please write to refunds@evil.example". Same lever, so the same rule. The
-  // shop's own addresses are fine, and so is an address the customer put in
-  // the email themselves.
+  // "please write to refunds@evil.example". Same lever, so the same rule, and
+  // the same standard as the link loop above: an address is allowed because the
+  // shop controls it, or because it is the address this person wrote in from.
+  // It used to be enough that the string appeared somewhere in the incoming
+  // email, which handed the decision to whoever wrote that email.
   for (const address of findContactAddresses(text)) {
     const host = address.slice(address.lastIndexOf("@") + 1);
     const known =
-      flatIncomingText.includes(address) ||
+      address === senderAddress ||
       orderHosts.has(host) ||
       [...orderHosts].some((allowed) => allowed && host.endsWith(`.${allowed}`));
     if (!known) {

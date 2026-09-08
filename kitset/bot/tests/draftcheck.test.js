@@ -422,3 +422,113 @@ test("the shop's own address and the customer's own are both fine", () => {
     [],
   );
 });
+
+/*
+ * A link with a sign-in name in front of the host.
+ *
+ * A browser reads everything between "https://" and the "@" as a sign-in name
+ * and throws it away, so this sends the customer to
+ * secure-payments-update.example. The email scan used to read the same run as
+ * an address, and addresses are blanked out before the link scan runs, so the
+ * link scan never saw a link here at all.
+ *
+ * The case that matters is the customer forwarding the scam and asking "is this
+ * you?", because the check used to waive any address that appeared in their
+ * message — and there it is, in their message.
+ */
+const USERINFO_LINK = "https://x@secure-payments-update.example/verify";
+
+function customerForwarded(line) {
+  return {
+    incomingText:
+      `Jane Doe <jane@example.com>\nOrder #1042\n` +
+      `I got an email saying to go to ${line} — is that really you?`,
+    storeDomain: "test-shop.myshopify.com",
+  };
+}
+
+test("a sign-in-name link fails even when the customer's own email quotes it", () => {
+  const result = checkDraft(
+    shippedDraft(`Yes, that is us. Please confirm at ${USERINFO_LINK}`),
+    shippedFacts,
+    customerForwarded(USERINFO_LINK),
+  );
+  assert.strictEqual(result.pass, false);
+  assert.match(result.problems.join(" "), /secure-payments-update\.example/);
+});
+
+test("a sign-in-name link fails when the customer never mentioned it", () => {
+  const result = checkDraft(
+    shippedDraft(`Please confirm your order at ${USERINFO_LINK}`),
+    shippedFacts,
+    shopContext,
+  );
+  assert.strictEqual(result.pass, false);
+  assert.match(result.problems.join(" "), /secure-payments-update\.example/);
+});
+
+/*
+ * The general rule underneath both of the above: what the customer's message
+ * happens to contain is not a permission. Anyone can write anything into an
+ * email to the shop, so letting a quoted string widen the allow-list hands the
+ * decision to whoever sent the email.
+ */
+test("quoting the customer's message does not widen what a link may be", () => {
+  const scam = "https://secure-payments-update.example/verify";
+  const result = checkDraft(
+    shippedDraft(`Yes, please go to ${scam} as they asked.`),
+    shippedFacts,
+    customerForwarded(scam),
+  );
+  assert.strictEqual(result.pass, false);
+  assert.match(result.problems.join(" "), /not in the order data/);
+});
+
+test("quoting the customer's message does not widen what an address may be", () => {
+  const scam = "refunds@secure-payments-update.example";
+  const result = checkDraft(
+    shippedDraft(`Yes, that is us. Write to ${scam} for the refund.`),
+    shippedFacts,
+    customerForwarded(scam),
+  );
+  assert.strictEqual(result.pass, false);
+  assert.match(result.problems.join(" "), /write to refunds@secure-payments-update\.example/);
+});
+
+/*
+ * The same address written without a scheme. "x@host/path" is an address as far
+ * as the email scan is concerned, so closing the link route alone would have
+ * left this one open.
+ */
+test("a bare sign-in-name link is refused as an address, quoted or not", () => {
+  const bare = "x@secure-payments-update.example/verify";
+  assert.strictEqual(
+    checkDraft(shippedDraft(`Confirm at ${bare}`), shippedFacts, customerForwarded(bare)).pass,
+    false,
+  );
+  assert.strictEqual(
+    checkDraft(shippedDraft(`Confirm at ${bare}`), shippedFacts, shopContext).pass,
+    false,
+  );
+});
+
+/*
+ * The From line still decides. A customer writing in from their own address may
+ * be told what the shop has on file for them, which is the case above at
+ * "the shop's own address and the customer's own are both fine" — and a From
+ * line naming two candidates decides nothing, so nothing is waived.
+ */
+test("an ambiguous From line waives no address", () => {
+  const result = checkDraft(
+    shippedDraft("We have you down as jane@example.com."),
+    shippedFacts,
+    {
+      incomingText:
+        `"Jane <jane@example.com>" <stranger@evil.net>\nOrder #1042\n` +
+        `Where is my order #1042?`,
+      storeDomain: "test-shop.myshopify.com",
+    },
+  );
+  assert.strictEqual(result.pass, false);
+  assert.match(result.problems.join(" "), /write to jane@example\.com/);
+});
