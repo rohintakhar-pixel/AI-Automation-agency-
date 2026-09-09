@@ -47,21 +47,6 @@ export default async function BotPage({
         {formatPrice(bot)}, one time
       </p>
 
-      <form action="/api/checkout" method="POST" className="mt-4">
-        <input type="hidden" name="slug" value={bot.slug} />
-        <button
-          type="submit"
-          className="rounded-md bg-gradient-to-r from-accent-a to-accent-b px-5 py-3 font-semibold text-white"
-        >
-          Buy for {formatPrice(bot)}
-        </button>
-      </form>
-
-      <p className="mt-3 text-sm text-muted">
-        Payment is handled by Stripe. After paying you get the bot files and the
-        setup manual straight away.
-      </p>
-
       <section className="mt-10">
         <h2 className="text-xl font-semibold">What it does</h2>
         {bot.longDescription.split("\n\n").map((paragraph, index) => (
@@ -109,6 +94,24 @@ export default async function BotPage({
           running the bot. Kitset never bills you again.
         </p>
       </section>
+
+      {/* The buy button sits after the requirements above, not before them. A
+          buyer who pays and then reads that they need a particular plan comes
+          back as a refund request. */}
+      <form action="/api/checkout" method="POST" className="mt-10">
+        <input type="hidden" name="slug" value={bot.slug} />
+        <button
+          type="submit"
+          className="rounded-md bg-gradient-to-r from-accent-a to-accent-b px-5 py-3 font-semibold text-white"
+        >
+          Buy for {formatPrice(bot)}
+        </button>
+      </form>
+
+      <p className="mt-3 text-sm text-muted">
+        Payment is handled by Stripe. After paying you get the bot files and the
+        setup manual straight away.
+      </p>
 
       <section className="mt-10">
         <h2 className="text-xl font-semibold">What you get</h2>

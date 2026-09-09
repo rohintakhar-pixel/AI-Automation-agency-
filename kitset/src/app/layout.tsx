@@ -49,7 +49,20 @@ export default function RootLayout({
 
         <footer className="border-t border-edge bg-surface">
           <div className="mx-auto w-full max-w-3xl px-4 py-5 text-sm text-muted">
-            {site.name}. Bots are sold as a one-time purchase.
+            <nav aria-label="Legal" className="flex flex-wrap gap-4">
+              <Link href="/terms" className="text-link hover:underline">
+                Terms
+              </Link>
+              <Link href="/privacy" className="text-link hover:underline">
+                Privacy
+              </Link>
+              <Link href="/refund" className="text-link hover:underline">
+                Refunds
+              </Link>
+            </nav>
+            <p className="mt-3">
+              {site.name}. Bots are sold as a one-time purchase.
+            </p>
           </div>
         </footer>
       </body>

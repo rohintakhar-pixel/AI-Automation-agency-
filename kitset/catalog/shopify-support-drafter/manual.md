@@ -524,10 +524,11 @@ the draft, fix it, send it. Nothing that fails a check is ever sent on its own.
 Two of those checks are about where a reply sends people. One fails if the
 reply contains a web address that is not the tracking link on the order or your
 own shop. The other fails if it tells the customer to write to an email address
-you do not control. Both are counted whether or not the address was written out
-in full — `pay-here.example/verify` is a link as much as `https://` in front of
-it is. That matters because the wording of a reply is partly steered by the
-customer's own message, and a message can ask for exactly that.
+you do not control, other than their own. Both are counted whether or not the
+address was written out in full — `pay-here.example/verify` is a link as much
+as `https://` in front of it is. That matters because the wording of a reply is
+partly steered by the customer's own message, and a message can ask for exactly
+that.
 
 **You want to see what it did and when.** In n8n, open the workflow and click
 **Executions**. Every run is listed, and you can click into any one and see
