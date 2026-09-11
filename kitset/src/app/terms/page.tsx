@@ -80,13 +80,7 @@ export default function TermsPage() {
         latest change.
       </p>
 
-      <h2 className="mt-8 text-xl font-bold text-ink">9. Governing law</h2>
-      <p className="mt-2 text-ink leading-relaxed">
-        These Terms are governed by the laws of{" "}
-        <strong>[Your State/Country — needs to be filled in]</strong>.
-      </p>
-
-      <h2 className="mt-8 text-xl font-bold text-ink">10. Contact</h2>
+      <h2 className="mt-8 text-xl font-bold text-ink">9. Contact</h2>
       <p className="mt-2 text-ink leading-relaxed">rohintbusiness@gmail.com</p>
     </div>
   );
